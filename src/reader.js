@@ -12,7 +12,8 @@ const Reader = {
     this.keepAwake();
     this.applyLook(); this.build();
     this.est = Estimate.sermon(s);
-    this.clock = setInterval(() => this.updateClock(), 1000); this.updateClock();
+    Track.begin(s);
+    this.clock = setInterval(() => { this.updateClock(); Track.tick(); }, 1000); this.updateClock();
     this.bindOnce();
   },
   close() {
@@ -22,8 +23,12 @@ const Reader = {
     try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { }
     try { this.wake && this.wake.release(); } catch (e) { } this.wake = null;
     App.touch(this.s);
-    const min = Math.round((Date.now() - this.t0) / 60000), s = this.s, words = Estimate.sermon(s).words;
-    if (min >= 5 && words > 30) UI.toast(`Pregou ${min} min? Registrar ajuda a calibrar as estimativas.`, { label: 'Registrar', fn: () => { (s.preached ||= []).push({ at: Date.now(), date: todayISO(), minutes: min, words }); App.touch(s); App.renderEditor(); UI.toast('Registrado. As próximas estimativas usam o seu ritmo.'); } });
+    const sess = Track.end(), s = this.s;
+    if (sess) {
+      App.renderEditor();
+      if (sess.minutes >= 5 && sess.words > 30) UI.toast(`Pregou ${sess.minutes} min? Use para calibrar as estimativas.`, { label: 'Usar', fn: () => { sess.calib = true; App.touch(s); App.updateEstimate(); UI.toast('Pronto. Relatório em 📊 Pregações.'); } });
+      else UI.toast('Sessão guardada em 📊 Pregações.');
+    }
   },
   async keepAwake() { try { if ('wakeLock' in navigator) this.wake = await navigator.wakeLock.request('screen'); } catch (e) { } },
   applyLook() {
@@ -61,7 +66,7 @@ const Reader = {
   blockEl(b, num) {
     const theme = Theme.reader();
     switch (b.type) {
-      case 'point': return el('h2', { class: 'r-point', html: `<span class="r-num">${num}.</span> ${b.html || ''}` });
+      case 'point': return el('h2', { class: 'r-point', 'data-pid': b.id, html: `<span class="r-num">${num}.</span> ${b.html || ''}` });
       case 'verse': {
         const ver = b.version ? (Bible.info(b.version)?.short || '') : (b.verLabel || '');
         const q = el('blockquote', { class: 'r-verse' }, el('div', { class: 'r-ref', text: [b.ref, ver].filter(Boolean).join(' · ') }), el('div', { html: b.html || '' }));
@@ -166,6 +171,7 @@ const Reader = {
     if (this.bound) return; this.bound = true;
     const sc = $('#r-scroll');
     $('#r-close').onclick = () => this.close();
+    $('#r-mic').onclick = () => Track.toggleMic();
     $('#r-play').onclick = () => this.s.settings.mode === 'scroll' ? this.toggle() : this.next();
     $('#r-smaller').onclick = () => this.setFont(this.s.settings.fontSize / 1.12);
     $('#r-bigger').onclick = () => this.setFont(this.s.settings.fontSize * 1.12);

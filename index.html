@@ -305,6 +305,38 @@ a.ref{color:var(--rverse);text-decoration:underline dotted;text-underline-offset
 @media (max-width:1280px){.tb-l{display:none}.tb{padding:5px 9px}.brand{font-size:15px}}
 @media (max-width:1050px){.brand span:not(.logo),.brand{font-size:0;gap:0}.brand .logo{font-size:16px}.rtab{padding:8px 9px;font-size:14px}.theme-btn{font-size:0!important;min-width:34px}.theme-btn:before{content:"◐";font-size:16px}.topbar{gap:6px;padding:0 6px}}
 @media (max-width:640px){.s-title{font-size:24px}.rtabs .rtab{padding:8px 6px;font-size:13px}}
+
+/* IA: revisão e relatório */
+.modal.xl{width:min(1040px,100%)}
+.ai-btn{color:var(--accent);border-color:var(--accent);font-weight:600}
+.ai-set .lbl,.lbl{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+.ai-set details{margin-top:10px}.ai-set textarea{resize:vertical}
+.rv h4,.rp h4{margin:18px 0 8px}.rv h5,.rp h5{margin:14px 0 6px}
+.rv-steps div{padding:4px 0}
+.rv-sum{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0}
+.rv-refs li{margin:4px 0}.rv-error b{color:#c50f1f}.rv-warn b{color:#c25e00}.rv-skip b{color:var(--muted)}
+.rv-tbl{width:100%;border-collapse:collapse;font-size:14px}
+.rv-tbl th,.rv-tbl td{border-bottom:1px solid var(--line);padding:8px;vertical-align:top;text-align:left}
+.rv-tbl td:first-child{width:22%}
+.rv-div{background:color-mix(in srgb,#f7c948 14%,transparent)}
+.rv-flag{font-size:12px;color:#c25e00;margin-top:4px}
+.rv-nota{display:inline-block;min-width:28px;text-align:center;border-radius:6px;padding:1px 6px;font-weight:700;margin-bottom:4px;color:#fff}
+.rv-nota.n0,.rv-nota.n1{background:#c50f1f}.rv-nota.n2{background:#c25e00}.rv-nota.n3{background:#107c10}.rv-nota.n4{background:#0b6a0b}
+.rv-sug{color:var(--accent);margin-top:4px}
+.rv-list li{margin:6px 0}
+.pill.cov-coberto{background:#dff6dd;color:#0b5a0b}.pill.cov-parcial{background:#fdf0d8;color:#8a5a00}.pill.cov-pulado{background:#fde7e9;color:#a4262c}
+.rp-head{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin:6px 0}
+.rp-big{display:flex;flex-direction:column}.rp-big b{font-size:26px}
+.rp-bars{display:flex;flex-direction:column;gap:6px}
+.rp-row{display:grid;grid-template-columns:minmax(120px,30%) 1fr 120px;gap:10px;align-items:center;font-size:14px}
+.rp-t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rp-bar{position:relative;height:16px;background:var(--panel2);border-radius:6px;overflow:hidden}
+.rp-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:6px}.rp-bar i.plan{background:color-mix(in srgb,var(--accent) 22%,transparent)}.rp-bar i.real{background:var(--accent);height:8px;top:4px}
+.rp-n{font-size:12px;color:var(--muted);text-align:right}
+.rp-tx{font-family:Consolas,monospace;font-size:13px}
+.rp-post{border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:6px 0;display:flex;gap:10px;align-items:flex-start}.rp-post p{flex:1;margin:0;white-space:pre-wrap}
+#r-mic.rec{background:#e5484d;border-color:#e5484d;color:#fff;animation:blink 1.5s infinite}
+.r-live{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);max-width:80vw;background:rgba(0,0,0,.55);color:#fff;font-size:15px;padding:6px 12px;border-radius:8px;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 </style>
 </head>
 <body>
@@ -463,12 +495,14 @@ a.ref{color:var(--rverse);text-decoration:underline dotted;text-underline-offset
     <div class="r-grp"><button class="r-btn" id="r-smaller" title="Letra menor">A−</button><span id="r-size" class="r-val"></span><button class="r-btn" id="r-bigger" title="Letra maior">A+</button></div>
     <div class="r-grp only-scroll"><button class="r-btn" id="r-slower" title="Mais devagar">−</button><span class="r-val" title="Velocidade">⇣<span id="r-speed"></span></span><button class="r-btn" id="r-faster" title="Mais rápido">+</button></div>
     <button class="r-btn" id="r-play" title="Rolar / pausar">▶</button>
+    <button class="r-btn" id="r-mic" title="Transcrever a pregação (microfone)">🎙</button>
     <button class="r-btn" id="r-font" title="Estilo da letra (com ou sem serifa)">Aa</button>
     <button class="r-btn" id="r-theme" title="Tema da leitura: Auto (segue o app) / Escuro / Sépia / Claro">Tema</button>
     <button class="r-btn" id="r-full" title="Tela cheia">⛶</button>
     <span class="r-est" id="r-est"></span><span class="r-timer" id="r-timer">00:00</span><span class="r-clock" id="r-clock"></span>
   </div>
   <div id="r-scroll"><div id="r-content"></div></div>
+  <div class="r-live" id="r-live" hidden></div>
   <div class="r-status" id="r-status"></div>
   <div class="r-flash" id="r-flash"></div>
   <div class="r-pop" id="r-pop" hidden></div>
@@ -1109,7 +1143,7 @@ const Estimate = {
   blockExtraMin(b) { return (b.type === 'ink' && b.ink?.strokes?.length) || b.type === 'image' ? this.EXTRA_VISUAL : 0; },
   samples() {
     const out = [];
-    for (const s of App.sermons.values()) for (const p of (s.preached || [])) if (p.words > 30 && p.minutes >= 3) out.push({ k: p.minutes / p.words, t: p.at || 0 });
+    for (const s of App.sermons.values()) for (const p of (s.preached || [])) if (p.calib !== false && p.words > 30 && p.minutes >= 3) out.push({ k: p.minutes / p.words, t: p.at || 0 });
     return out.sort((a, b) => b.t - a.t).slice(0, 12);
   },
   /* minutos por palavra: mediana das pregações registradas; senão, padrão */
@@ -1359,6 +1393,8 @@ const App = {
         <span class="s-est" id="s-est"></span>
         <label>Seção <select id="s-sec">${secOpts}</select></label>
         <span class="s-actions">
+          <button class="btn sm ai-btn" id="s-review" title="Revisar com IA (Claude e Gemini) e conferir referências">✦ Revisar</button>
+          <button class="btn sm" id="s-report" title="Pregações registradas e relatório pós-culto">📊 Pregações${(s.preached || []).length ? ' (' + s.preached.length + ')' : ''}</button>
           <button class="btn sm" id="s-dup" title="Duplicar">Duplicar</button>
           <button class="btn sm danger-text" id="s-del" title="Excluir">Excluir</button>
         </span>
@@ -1376,6 +1412,8 @@ const App = {
     $('#s-duration').oninput = e => { s.duration = +e.target.value || 0; this.touch(); };
     $('#s-sec').onchange = e => { s.sec = e.target.value; const sec = this.meta.sections.find(x => x.id === s.sec); this.meta.currentSec = sec.id; this.meta.currentNb = sec.nb; this.touch(); this.saveMeta(); this.renderNav(); };
     $('#s-dup').onclick = () => this.duplicateSermon();
+    $('#s-review').onclick = () => { this.flush(); Review.open(s); };
+    $('#s-report').onclick = () => PostReport.open(s);
     $('#s-del').onclick = () => this.deleteSermon();
     ed.append(el('div', { id: 'blocks' }));
     this.updateEstimate();
@@ -1698,7 +1736,8 @@ const Reader = {
     this.keepAwake();
     this.applyLook(); this.build();
     this.est = Estimate.sermon(s);
-    this.clock = setInterval(() => this.updateClock(), 1000); this.updateClock();
+    Track.begin(s);
+    this.clock = setInterval(() => { this.updateClock(); Track.tick(); }, 1000); this.updateClock();
     this.bindOnce();
   },
   close() {
@@ -1708,8 +1747,12 @@ const Reader = {
     try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { }
     try { this.wake && this.wake.release(); } catch (e) { } this.wake = null;
     App.touch(this.s);
-    const min = Math.round((Date.now() - this.t0) / 60000), s = this.s, words = Estimate.sermon(s).words;
-    if (min >= 5 && words > 30) UI.toast(`Pregou ${min} min? Registrar ajuda a calibrar as estimativas.`, { label: 'Registrar', fn: () => { (s.preached ||= []).push({ at: Date.now(), date: todayISO(), minutes: min, words }); App.touch(s); App.renderEditor(); UI.toast('Registrado. As próximas estimativas usam o seu ritmo.'); } });
+    const sess = Track.end(), s = this.s;
+    if (sess) {
+      App.renderEditor();
+      if (sess.minutes >= 5 && sess.words > 30) UI.toast(`Pregou ${sess.minutes} min? Use para calibrar as estimativas.`, { label: 'Usar', fn: () => { sess.calib = true; App.touch(s); App.updateEstimate(); UI.toast('Pronto. Relatório em 📊 Pregações.'); } });
+      else UI.toast('Sessão guardada em 📊 Pregações.');
+    }
   },
   async keepAwake() { try { if ('wakeLock' in navigator) this.wake = await navigator.wakeLock.request('screen'); } catch (e) { } },
   applyLook() {
@@ -1747,7 +1790,7 @@ const Reader = {
   blockEl(b, num) {
     const theme = Theme.reader();
     switch (b.type) {
-      case 'point': return el('h2', { class: 'r-point', html: `<span class="r-num">${num}.</span> ${b.html || ''}` });
+      case 'point': return el('h2', { class: 'r-point', 'data-pid': b.id, html: `<span class="r-num">${num}.</span> ${b.html || ''}` });
       case 'verse': {
         const ver = b.version ? (Bible.info(b.version)?.short || '') : (b.verLabel || '');
         const q = el('blockquote', { class: 'r-verse' }, el('div', { class: 'r-ref', text: [b.ref, ver].filter(Boolean).join(' · ') }), el('div', { html: b.html || '' }));
@@ -1852,6 +1895,7 @@ const Reader = {
     if (this.bound) return; this.bound = true;
     const sc = $('#r-scroll');
     $('#r-close').onclick = () => this.close();
+    $('#r-mic').onclick = () => Track.toggleMic();
     $('#r-play').onclick = () => this.s.settings.mode === 'scroll' ? this.toggle() : this.next();
     $('#r-smaller').onclick = () => this.setFont(this.s.settings.fontSize / 1.12);
     $('#r-bigger').onclick = () => this.setFont(this.s.settings.fontSize * 1.12);
@@ -3222,6 +3266,372 @@ const CloudUI = {
         el('button', { class: 'btn primary', text: 'Sincronizar agora', onclick: async () => { await Cloud.sync(); this.viewAccount(); } }),
         el('button', { class: 'btn', text: 'Sair desta conta', onclick: async () => { await Cloud.signOut(); this.viewLogin('Você saiu. As ministrações continuam salvas neste aparelho.'); } })),
       el('p', { class: 'muted small', text: 'A Bíblia baixada fica em cada aparelho (não ocupa a nuvem). Ministrações, cadernos, seções, tipos de bloco e imagens sincronizam.' }));
+  }
+};
+
+/* ===== Inteligência artificial: Claude (Anthropic) e Gemini (Google), direto do navegador =====
+   As chaves ficam só neste aparelho (localStorage). Nada passa por servidor nosso. */
+const AI = {
+  cfg() {
+    let c = {}; try { c = JSON.parse(localStorage.getItem('ss-ai') || '{}'); } catch (e) { }
+    return { anthropicKey: c.anthropicKey || '', geminiKey: c.geminiKey || '', claudeModel: c.claudeModel || 'claude-sonnet-5-5', geminiModel: c.geminiModel || 'gemini-flash-latest', church: c.church ?? 'Igreja evangélica; cultos de domingo e células; público misto (membros e visitantes).' };
+  },
+  save(c) { try { localStorage.setItem('ss-ai', JSON.stringify(c)); } catch (e) { } },
+  has(p) { const c = this.cfg(); return p === 'claude' ? !!c.anthropicKey : p === 'gemini' ? !!c.geminiKey : !!(c.anthropicKey || c.geminiKey); },
+  async claude(system, user, { maxTokens = 6000 } = {}) {
+    const c = this.cfg();
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': c.anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json', 'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({ model: c.claudeModel, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error('Claude: ' + (j.error?.message || ('erro ' + r.status)));
+    return (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+  },
+  async gemini(system, user, { json = true } = {}) {
+    const c = this.cfg();
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(c.geminiModel)}:generateContent`, {
+      method: 'POST',
+      headers: { 'x-goog-api-key': c.geminiKey, 'content-type': 'application/json' },
+      body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }], ...(json ? { generationConfig: { responseMimeType: 'application/json' } } : {}) })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error('Gemini: ' + (j.error?.message || ('erro ' + r.status)));
+    const parts = j.candidates?.[0]?.content?.parts || [];
+    return parts.filter(p => !p.thought && p.text).map(p => p.text).join('');
+  },
+  ask(provider, system, user, opts) { return provider === 'gemini' ? this.gemini(system, user, opts) : this.claude(system, user, opts); },
+  parseJSON(t) {
+    if (!t) throw new Error('Resposta vazia');
+    const s = t.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+    try { return JSON.parse(s); } catch (e) { }
+    const a = s.indexOf('{'), b = s.lastIndexOf('}');
+    if (a >= 0 && b > a) return JSON.parse(s.slice(a, b + 1));
+    throw new Error('A IA não devolveu JSON válido');
+  },
+  /* Ministração em texto simples, com rótulos dos blocos */
+  sermonText(s) {
+    const lines = [`# ${s.title}`]; if (s.passage) lines.push(`Texto-base: ${s.passage}`); if (s.duration) lines.push(`Duração planejada: ${s.duration} min`);
+    let n = 0;
+    for (const b of s.blocks) {
+      const t = htmlToText(b.html || '').trim();
+      if (b.type === 'point') lines.push(`\n## Ponto ${++n}: ${t}`);
+      else if (b.type === 'verse') lines.push(`[Versículo ${b.ref || ''}${b.verLabel ? ' (' + b.verLabel + ')' : ''}] ${t}`);
+      else if (b.type === 'ink') lines.push('[Desenho à mão]');
+      else if (b.type === 'image') lines.push(`[Imagem]${b.alt ? ' ' + b.alt.slice(0, 400) : ''}`);
+      else if (t) lines.push(b.type === 'text' ? t : `[${BLOCK_TYPES[b.type]?.label || 'Bloco'}] ${t}`);
+    }
+    return lines.join('\n');
+  },
+  settings(after) {
+    const c = this.cfg();
+    const ak = el('input', { class: 'inp', type: 'password', placeholder: 'sk-ant-…', value: c.anthropicKey, autocomplete: 'off' });
+    const gk = el('input', { class: 'inp', type: 'password', placeholder: 'AIza…', value: c.geminiKey, autocomplete: 'off' });
+    const cm = el('input', { class: 'inp', value: c.claudeModel }), gm = el('input', { class: 'inp', value: c.geminiModel });
+    const ch = el('textarea', { class: 'inp', rows: 2 }); ch.value = c.church;
+    const out = el('p', { class: 'small' });
+    const val = () => ({ anthropicKey: ak.value.trim(), geminiKey: gk.value.trim(), claudeModel: cm.value.trim() || 'claude-sonnet-5-5', geminiModel: gm.value.trim() || 'gemini-flash-latest', church: ch.value.trim() });
+    const body = el('div', { class: 'ai-set' },
+      el('p', { class: 'muted', html: 'As chaves ficam <b>só neste aparelho</b> e vão direto para a Anthropic e o Google. Cada análise custa centavos (cobrança na sua conta de cada serviço). Você pode usar só uma das duas.' }),
+      el('label', { class: 'lbl', text: 'Chave da API do Claude (console.anthropic.com › API Keys)' }), ak,
+      el('label', { class: 'lbl', text: 'Chave da API do Gemini (aistudio.google.com › Get API key)' }), gk,
+      el('details', {}, el('summary', { text: 'Modelos e contexto' }),
+        el('label', { class: 'lbl', text: 'Modelo do Claude' }), cm,
+        el('label', { class: 'lbl', text: 'Modelo do Gemini' }), gm,
+        el('label', { class: 'lbl', text: 'Contexto da sua igreja (ajuda a IA a calibrar a revisão)' }), ch),
+      out);
+    UI.modal({ title: 'Inteligência artificial', body, wide: true, actions: [
+      { label: 'Testar', onClick: async () => {
+        this.save(val()); out.textContent = 'Testando…'; const res = [];
+        if (this.has('claude')) try { await this.claude('Responda só: ok', 'teste', { maxTokens: 10 }); res.push('Claude ✓'); } catch (e) { res.push('Claude ✗ ' + e.message); }
+        if (this.has('gemini')) try { await this.gemini('Responda só: ok', 'teste', { json: false }); res.push('Gemini ✓'); } catch (e) { res.push('Gemini ✗ ' + e.message); }
+        out.textContent = res.join(' · ') || 'Informe pelo menos uma chave.'; return false;
+      } },
+      { label: 'Salvar', primary: true, onClick: () => { this.save(val()); UI.toast('Configuração de IA salva'); after && after(); } }] });
+  }
+};
+
+/* ===== Checagem de referências (por código, sem IA) ===== */
+async function checkReferences(s) {
+  const out = [];
+  const ver = Bible.current(); const books = ver ? await Bible.load(ver) : null;
+  const words = t => new Set(stripAccents(t.toLowerCase()).replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 3));
+  const seen = new Set();
+  const check = async (raw, where, text) => {
+    const r = parseRef(raw); if (!r) return;
+    const key = refLabel(r) + '|' + where; if (seen.has(key)) return; seen.add(key);
+    if (!books) { out.push({ ref: refLabel(r), where, status: 'skip', msg: 'Baixe uma Bíblia para conferir.' }); return; }
+    const bk = books[r.book - 1];
+    if (!bk) { out.push({ ref: refLabel(r), where, status: 'warn', msg: 'Livro não está nesta versão.' }); return; }
+    if (r.ch > bk.length) { out.push({ ref: refLabel(r), where, status: 'error', msg: `${BOOKS[r.book - 1].name} tem só ${bk.length} capítulos.` }); return; }
+    const max = bk[r.ch - 1].length;
+    const bad = r.ranges.find(([a, z]) => a > max || z > max || a < 1 || z < a);
+    if (bad) { out.push({ ref: refLabel(r), where, status: 'error', msg: `${BOOKS[r.book - 1].name} ${r.ch} tem só ${max} versículos.` }); return; }
+    if (text && text.length > 25 && r.ranges.length) {
+      const res = await Bible.lookup(r, ver); const a = words(text), b = words(res.verses.map(v => v[1]).join(' '));
+      const inter = [...a].filter(w => b.has(w)).length; const sim = inter / Math.max(1, Math.min(a.size, b.size));
+      if (sim < 0.3) { out.push({ ref: refLabel(r), where, status: 'warn', msg: `O texto citado não parece ser desta referência (semelhança ${Math.round(sim * 100)}% com a ${Bible.info(ver).short}). Confira — pode ser só outra tradução.` }); return; }
+    }
+    out.push({ ref: refLabel(r), where, status: 'ok', msg: 'Referência válida.' });
+  };
+  if (s.passage) for (const p of s.passage.split(/;/)) await check(p.trim(), 'Texto-base');
+  let n = 0;
+  for (const b of s.blocks) {
+    if (b.type === 'point') n++;
+    const where = n ? `Ponto ${n}` : 'Introdução';
+    if (b.type === 'verse' && b.ref) await check(b.ref, where, htmlToText(b.html || '').replace(/\b\d{1,3}\b/g, ' '));
+    const t = htmlToText(b.html || ''); REF_IN_TEXT.lastIndex = 0; let m;
+    while ((m = REF_IN_TEXT.exec(t))) await check(m[0], where);
+  }
+  return out;
+}
+
+/* ===== Revisão do sermão ===== */
+const REVIEW_CRITERIA = [
+  ['texto', 'Fidelidade ao texto bíblico'], ['contexto', 'Contexto histórico e literário'], ['estrutura', 'Estrutura e progressão'],
+  ['aplicacao', 'Aplicação prática'], ['ilustracoes', 'Ilustrações'], ['clareza', 'Clareza para o público'], ['conclusao', 'Conclusão e apelo']
+];
+const Review = {
+  system() {
+    return `Você é um revisor homilético experiente, com formação em exegese bíblica (hebraico e grego), teologia e comunicação. Você ajuda um pastor a MELHORAR o próprio sermão — você não reescreve o sermão por ele.
+Contexto da igreja: ${AI.cfg().church}
+Regras:
+- Seja honesto e específico; aponte problemas reais (eisegese, texto fora de contexto, afirmações históricas duvidosas, saltos lógicos, aplicações vagas). Elogios só quando merecidos.
+- Respeite a tradição evangélica do pastor; quando houver divergência teológica legítima entre tradições, diga isso em vez de tratar como erro.
+- Nunca invente versículos nem citações. Cite referências, não textos longos.
+- Escreva em português do Brasil.
+Responda SOMENTE com JSON válido neste formato:
+{"resumo":"2-3 frases sobre a mensagem central e a impressão geral",
+ "criterios":[${REVIEW_CRITERIA.map(([id]) => `{"id":"${id}","nota":0,"comentario":"","sugestao":""}`).join(',')}],
+ "pontos_fortes":["..."],
+ "riscos":[{"trecho":"citação curta do sermão","problema":"...","sugestao":"..."}],
+ "perguntas_ouvinte_cetico":["perguntas que um ouvinte crítico faria"],
+ "melhorias_prioritarias":["as 3 mudanças que mais melhorariam o sermão"]}
+Notas de 0 a 10.`;
+  },
+  async run(s, providers, onStep) {
+    const text = AI.sermonText(s);
+    const user = `Revise este sermão:\n\n${text}`;
+    const tasks = providers.map(async p => {
+      onStep && onStep(p, 'run');
+      try { const r = AI.parseJSON(await AI.ask(p, this.system(), user)); onStep && onStep(p, 'ok'); return [p, { ok: true, data: r }]; }
+      catch (e) { onStep && onStep(p, 'err'); return [p, { ok: false, error: e.message }]; }
+    });
+    const refs = await checkReferences(s);
+    const results = Object.fromEntries(await Promise.all(tasks));
+    const rev = { at: Date.now(), providers, refs, results, models: { claude: AI.cfg().claudeModel, gemini: AI.cfg().geminiModel } };
+    (s.reviews ||= []).unshift(rev); s.reviews = s.reviews.slice(0, 10); App.touch(s);
+    return rev;
+  },
+  open(s) {
+    const body = el('div', { class: 'rv' });
+    const m = UI.modal({ title: 'Revisão do sermão', body, wide: true });
+    m.box.classList.add('xl');
+    const start = () => {
+      body.innerHTML = '';
+      const cl = el('input', { type: 'checkbox', checked: AI.has('claude'), disabled: !AI.has('claude') });
+      const gm = el('input', { type: 'checkbox', checked: AI.has('gemini'), disabled: !AI.has('gemini') });
+      body.append(
+        el('p', { text: 'A revisão olha fidelidade ao texto, contexto, estrutura, aplicação, ilustrações, clareza e conclusão. Com as duas IAs, você vê onde elas concordam — e principalmente onde DISCORDAM, que é onde vale pensar.' }),
+        el('div', { class: 'row-btns', style: { flexWrap: 'wrap', alignItems: 'center' } },
+          el('label', { class: 'on-check' }, cl, ' Claude'), el('label', { class: 'on-check' }, gm, ' Gemini'),
+          el('button', { class: 'btn link', text: '⚙ Chaves e modelos', onclick: () => AI.settings(() => { m.close(); this.open(s); }) })),
+        !AI.has() ? el('p', { class: 'on-log', text: 'Configure pelo menos uma chave (Claude ou Gemini) em ⚙ Chaves e modelos.' }) : null,
+        el('p', { class: 'muted small', text: 'A checagem das referências bíblicas é feita pelo próprio app, sem IA, contra a Bíblia baixada.' }),
+        el('div', { class: 'row-btns' },
+          el('button', { class: 'btn primary', text: '✦ Revisar agora', onclick: async () => {
+            const prov = [cl.checked && 'claude', gm.checked && 'gemini'].filter(Boolean);
+            body.innerHTML = ''; const st = el('div', { class: 'rv-steps' });
+            const line = (p, t) => { let e = st.querySelector(`[data-p="${p}"]`); if (!e) { e = el('div', { 'data-p': p }); st.append(e); } e.textContent = t; };
+            body.append(el('p', { text: 'Analisando… (costuma levar de 20 a 60 segundos)' }), st);
+            prov.forEach(p => line(p, `${p === 'claude' ? 'Claude' : 'Gemini'}: aguardando…`)); line('refs', 'Referências: conferindo…');
+            const rev = await this.run(s, prov, (p, k) => line(p, `${p === 'claude' ? 'Claude' : 'Gemini'}: ${k === 'run' ? 'analisando…' : k === 'ok' ? 'pronto ✓' : 'erro ✗'}`));
+            this.render(body, rev, s, start);
+          } }),
+          s.reviews?.length ? el('button', { class: 'btn', text: `Ver última revisão (${new Date(s.reviews[0].at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })})`, onclick: () => this.render(body, s.reviews[0], s, start) }) : null));
+    };
+    start();
+  },
+  render(body, rev, s, back) {
+    body.innerHTML = '';
+    const P = rev.providers, R = rev.results;
+    const name = p => p === 'claude' ? 'Claude' : 'Gemini';
+    body.append(el('div', { class: 'row-btns', style: { justifyContent: 'space-between' } },
+      el('span', { class: 'muted small', text: `Revisão de ${new Date(rev.at).toLocaleString('pt-BR')}` }),
+      el('button', { class: 'btn sm', text: '↻ Nova revisão', onclick: back })));
+    for (const p of P) if (!R[p]?.ok) body.append(el('p', { class: 'on-log', text: `⚠ ${name(p)}: ${R[p]?.error || 'falhou'}` }));
+    const ok = P.filter(p => R[p]?.ok);
+    // Resumo
+    for (const p of ok) if (R[p].data.resumo) body.append(el('div', { class: 'rv-sum' }, el('b', { text: name(p) + ': ' }), R[p].data.resumo));
+    // Referências
+    const refs = rev.refs || []; const probs = refs.filter(r => r.status !== 'ok');
+    body.append(el('h4', { text: `Referências bíblicas (${refs.length} conferidas${probs.length ? ', ' + probs.length + ' para revisar' : ', todas certas'})` }));
+    if (probs.length) body.append(el('ul', { class: 'rv-refs' }, probs.map(r => el('li', { class: 'rv-' + r.status }, el('b', { text: `${r.ref} ` }), el('span', { class: 'muted', text: `(${r.where}) ` }), r.msg))));
+    // Critérios lado a lado
+    if (ok.length) {
+      const tbl = el('table', { class: 'rv-tbl' });
+      tbl.append(el('tr', {}, el('th', { text: 'Critério' }), ...ok.map(p => el('th', { text: name(p) }))));
+      for (const [id, label] of REVIEW_CRITERIA) {
+        const cells = ok.map(p => (R[p].data.criterios || []).find(c => c.id === id) || {});
+        const notas = cells.map(c => +c.nota).filter(n => !isNaN(n));
+        const diverge = notas.length === 2 && Math.abs(notas[0] - notas[1]) >= 3;
+        tbl.append(el('tr', { class: diverge ? 'rv-div' : '' },
+          el('td', {}, el('b', { text: label }), diverge ? el('div', { class: 'rv-flag', text: '⚠ as IAs discordam — vale pensar aqui' }) : null),
+          ...cells.map(c => el('td', {}, el('span', { class: 'rv-nota n' + Math.round((+c.nota || 0) / 2.5), text: c.nota ?? '–' }), el('div', { text: c.comentario || '' }), c.sugestao ? el('div', { class: 'rv-sug', text: '→ ' + c.sugestao }) : null))));
+      }
+      body.append(el('h4', { text: 'Avaliação por critério' }), tbl);
+      const list = (key, title, fmt) => {
+        const items = ok.flatMap(p => (R[p].data[key] || []).map(x => [p, x])); if (!items.length) return;
+        body.append(el('h4', { text: title }), el('ul', { class: 'rv-list' }, items.map(([p, x]) => el('li', {}, el('span', { class: 'pill', text: name(p) }), ' ', fmt(x)))));
+      };
+      list('melhorias_prioritarias', 'O que mais melhoraria o sermão', x => x);
+      list('riscos', 'Pontos de atenção', x => el('span', {}, x.trecho ? el('i', { text: `“${x.trecho}” — ` }) : null, x.problema || '', x.sugestao ? el('div', { class: 'rv-sug', text: '→ ' + x.sugestao }) : null));
+      list('pontos_fortes', 'Pontos fortes', x => x);
+      list('perguntas_ouvinte_cetico', 'Perguntas de um ouvinte crítico', x => x);
+    }
+    body.append(el('p', { class: 'muted small', text: 'IAs erram. Use como segunda opinião: a última palavra sobre a mensagem é sua (e do Espírito Santo).' }));
+  }
+};
+
+/* ===== Pós-culto: tempo por ponto, transcrição ao vivo e análise "planejado x pregado" ===== */
+const Track = {
+  /* Chamado pelo modo leitura a cada segundo */
+  begin(s) { this.s = s; this.on = true; this.per = {}; this.transcript = []; this.t0 = Date.now(); this.listening = false; },
+  currentKey() {
+    const R = Reader; if (!R.s) return 'intro';
+    if (R.s.settings.mode === 'points') return R.segments[R.seg]?.point?.id || 'intro';
+    const sc = $('#r-scroll'), mid = sc.scrollTop + sc.clientHeight * 0.4; let key = 'intro';
+    for (const h of $$('#r-content [data-pid]')) { if (h.offsetTop <= mid) key = h.dataset.pid; else break; }
+    return key;
+  },
+  tick() { if (!this.on || document.hidden) return; const k = this.currentKey(); this.per[k] = (this.per[k] || 0) + 1; },
+  /* ---- transcrição ao vivo (reconhecimento de fala do navegador) ---- */
+  supported() { return !!(window.SpeechRecognition || window.webkitSpeechRecognition); },
+  toggleMic() { this.listening ? this.stopMic() : this.startMic(); },
+  startMic() {
+    if (!this.supported()) { UI.toast('Este navegador não tem reconhecimento de fala. Use o Microsoft Edge.'); return; }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const r = new SR(); r.lang = 'pt-BR'; r.continuous = true; r.interimResults = true;
+    r.onresult = e => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const res = e.results[i];
+        if (res.isFinal) { const text = res[0].transcript.trim(); if (text) this.transcript.push({ t: Math.round((Date.now() - this.t0) / 1000), k: this.currentKey(), text }); }
+        else interim += res[0].transcript;
+      }
+      const L = $('#r-live'); if (L) L.textContent = interim || (this.transcript.at(-1)?.text || '');
+    };
+    r.onerror = e => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { UI.toast('Permita o uso do microfone para transcrever.'); this.stopMic(); } };
+    r.onend = () => { if (this.listening) setTimeout(() => { try { r.start(); } catch (e) { } }, 250); }; // o navegador encerra sozinho de tempos em tempos
+    this.rec = r; this.listening = true;
+    try { r.start(); } catch (e) { }
+    $('#r-mic').classList.add('rec'); $('#r-live').hidden = false;
+    UI.toast('Transcrevendo… (o texto fica salvo com esta ministração)');
+  },
+  stopMic() { this.listening = false; try { this.rec && this.rec.stop(); } catch (e) { } $('#r-mic')?.classList.remove('rec'); const L = $('#r-live'); if (L) L.hidden = true; },
+  /* Ao sair do modo leitura: guarda a sessão */
+  end() {
+    if (!this.on) return null; this.on = false; this.stopMic();
+    const s = this.s, secs = Math.round((Date.now() - this.t0) / 1000);
+    if (secs < 180 && !this.transcript.length) return null;
+    const pts = s.blocks.filter(b => b.type === 'point').map(b => ({ id: b.id, title: htmlToText(b.html) }));
+    const sess = { at: Date.now(), date: todayISO(), minutes: Math.round(secs / 60), words: Estimate.sermon(s).words, per: this.per, points: pts, transcript: this.transcript, calib: false, mode: s.settings.mode };
+    (s.preached ||= []).push(sess); App.touch(s);
+    return sess;
+  }
+};
+
+const PostReport = {
+  open(s, idx) {
+    const list = (s.preached || []).map((p, i) => ({ p, i })).reverse();
+    const body = el('div', { class: 'rp' });
+    const m = UI.modal({ title: 'Pregações e relatório pós-culto', body, wide: true }); m.box.classList.add('xl');
+    const showList = () => {
+      body.innerHTML = '';
+      if (!list.length) { body.append(el('p', { class: 'muted', text: 'Ainda não há pregações registradas. No modo leitura, a duração de cada ponto é medida sozinha; toque em 🎙 para transcrever.' })); return; }
+      body.append(el('p', { class: 'muted', text: 'Cada vez que você usa o modo leitura por 3 minutos ou mais, o SmartSermon guarda quanto tempo passou em cada ponto (e a transcrição, se o 🎙 estiver ligado).' }));
+      for (const { p, i } of list) body.append(el('button', { class: 'on-item', onclick: () => this.detail(body, s, i, showList) },
+        el('b', { text: `${new Date(p.at || (p.date + 'T12:00')).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} · ${p.minutes} min` }),
+        el('span', { class: 'muted small', text: [p.per ? 'tempo por ponto' : '', p.transcript?.length ? `transcrição (${p.transcript.length} trechos)` : '', p.analysis ? 'analisada' : '', p.calib === false ? 'não usada na estimativa' : 'usada na estimativa'].filter(Boolean).join(' · ') })));
+    };
+    idx != null ? this.detail(body, s, idx, showList) : showList();
+  },
+  segmentsPlan(s) {
+    const k = Estimate.rate().k, segs = []; let cur = { key: 'intro', title: 'Introdução', blocks: [] };
+    for (const b of s.blocks) { if (b.type === 'point') { if (cur.blocks.length) segs.push(cur); cur = { key: b.id, title: htmlToText(b.html) || 'Ponto', blocks: [b] }; } else cur.blocks.push(b); }
+    if (cur.blocks.length) segs.push(cur);
+    return segs.map(g => ({ ...g, planned: Estimate.ofBlocks(g.blocks, k).minutes }));
+  },
+  transcriptText(p) { return (p.transcript || []).map(x => `[${String(Math.floor(x.t / 60)).padStart(2, '0')}:${String(x.t % 60).padStart(2, '0')}] ${x.text}`).join('\n'); },
+  detail(body, s, i, back) {
+    const p = s.preached[i]; body.innerHTML = '';
+    const segs = this.segmentsPlan(s); const factor = (s.duration || 0) && segs.reduce((n, g) => n + g.planned, 0) ? s.duration / segs.reduce((n, g) => n + g.planned, 0) : 1;
+    body.append(el('div', { class: 'row-btns', style: { justifyContent: 'space-between' } },
+      el('button', { class: 'btn link', text: '‹ Todas as pregações', onclick: back }),
+      el('span', { class: 'muted small', text: new Date(p.at || (p.date + 'T12:00')).toLocaleString('pt-BR') })));
+    const calib = el('input', { type: 'checkbox', checked: p.calib !== false, onchange: e => { p.calib = e.target.checked; App.touch(s); App.updateEstimate(); } });
+    body.append(el('div', { class: 'rp-head' },
+      el('div', { class: 'rp-big' }, el('b', { text: `${p.minutes} min` }), el('span', { class: 'muted small', text: 'pregados' })),
+      el('div', { class: 'rp-big' }, el('b', { text: s.duration ? `${s.duration} min` : '—' }), el('span', { class: 'muted small', text: 'planejados' })),
+      el('label', { class: 'on-check' }, calib, ' Usar esta pregação para calibrar a estimativa de tempo')));
+    if (p.per) {
+      const total = Object.values(p.per).reduce((a, b) => a + b, 0) || 1;
+      const rows = segs.map(g => ({ ...g, real: (p.per[g.key] || 0) / 60, plan: g.planned * factor }));
+      const max = Math.max(...rows.map(r => Math.max(r.real, r.plan)), 1);
+      const tbl = el('div', { class: 'rp-bars' });
+      for (const r of rows) tbl.append(el('div', { class: 'rp-row' },
+        el('div', { class: 'rp-t', text: r.title }),
+        el('div', { class: 'rp-bar' }, el('i', { class: 'plan', style: { width: (r.plan / max * 100) + '%' } }), el('i', { class: 'real', style: { width: (r.real / max * 100) + '%' } })),
+        el('div', { class: 'rp-n', text: `${r.real.toFixed(1)} / ${r.plan.toFixed(1)} min` })));
+      body.append(el('h4', { text: 'Tempo por ponto (pregado / planejado)' }), tbl,
+        el('p', { class: 'muted small', text: 'Barra roxa = pregado; barra clara = planejado (estimativa proporcional à duração planejada). Medido pela posição da tela no modo leitura.' }));
+    }
+    // Transcrição
+    const ta = el('textarea', { class: 'inp rp-tx', rows: 8, placeholder: 'Sem transcrição. Cole aqui o texto (por exemplo, de uma transcrição da gravação do culto) para analisar.' }); ta.value = this.transcriptText(p);
+    ta.onchange = () => { const v = ta.value.trim(); p.transcript = v ? v.split('\n').map(l => { const m = l.match(/^\[(\d+):(\d+)\]\s*(.*)$/); return m ? { t: +m[1] * 60 + +m[2], text: m[3] } : { t: 0, text: l }; }).filter(x => x.text) : []; App.touch(s); };
+    body.append(el('h4', { text: 'Transcrição' }), ta,
+      el('div', { class: 'row-btns' }, el('button', { class: 'btn sm', text: 'Baixar .txt', onclick: () => saveFile(`${safeName(s.title)} - transcricao.txt`, new Blob([ta.value], { type: 'text/plain' })) })));
+    // Análise
+    const an = el('div', { class: 'rp-an' });
+    const prov = AI.has('claude') ? 'claude' : 'gemini';
+    body.append(el('h4', { text: 'Planejado x pregado (análise com IA)' }), an);
+    const draw = () => { an.innerHTML = ''; if (p.analysis) this.renderAnalysis(an, p.analysis); an.append(el('div', { class: 'row-btns' },
+      el('button', { class: 'btn primary', text: p.analysis ? '↻ Analisar de novo' : '✦ Analisar', disabled: !AI.has() || !(p.transcript || []).length, onclick: async e => {
+        e.target.disabled = true; e.target.textContent = 'Analisando…';
+        try { p.analysis = await this.analyze(s, p, prov); App.touch(s); } catch (err) { UI.toast(err.message); }
+        draw();
+      } }),
+      !AI.has() ? el('button', { class: 'btn link', text: 'Configurar IA', onclick: () => AI.settings(draw) }) : null,
+      !(p.transcript || []).length ? el('span', { class: 'muted small', text: 'Precisa de transcrição.' }) : null)); };
+    draw();
+  },
+  async analyze(s, p, provider) {
+    const segs = this.segmentsPlan(s);
+    const timing = p.per ? segs.map(g => `- ${g.title}: ${((p.per[g.key] || 0) / 60).toFixed(1)} min`).join('\n') : '(sem medição)';
+    const system = `Você ajuda um pastor a avaliar uma pregação comparando o que ele PLANEJOU (esboço) com o que ele de fato PREGOU (transcrição automática, pode ter erros de reconhecimento de fala). Contexto da igreja: ${AI.cfg().church}
+Seja honesto, específico e encorajador sem bajular. Português do Brasil. Não invente frases que não estão na transcrição.
+Responda SOMENTE com JSON:
+{"cobertura":[{"ponto":"título do ponto","status":"coberto|parcial|pulado","comentario":""}],
+ "acrescentados":["assuntos que entraram na pregação e não estavam no esboço"],
+ "frases_marcantes":["frases fortes ditas de improviso, copiadas da transcrição"],
+ "resumo_redes":["3 textos curtos para redes sociais, com tom pastoral"],
+ "devocional":"um devocional de 150-200 palavras para a igreja meditar na semana, baseado na mensagem",
+ "sugestoes":["melhorias para a próxima vez (ritmo, transições, tempo, clareza)"]}`;
+    const user = `ESBOÇO PLANEJADO:\n${AI.sermonText(s)}\n\nTEMPO POR PONTO (medido):\n${timing}\nDuração total: ${p.minutes} min (planejado: ${s.duration || '—'} min)\n\nTRANSCRIÇÃO:\n${this.transcriptText(p).slice(0, 120000)}`;
+    const r = AI.parseJSON(await AI.ask(provider, system, user, { maxTokens: 8000 }));
+    r.provider = provider; r.at = Date.now(); return r;
+  },
+  renderAnalysis(box, a) {
+    const copy = t => el('button', { class: 'btn sm', text: 'Copiar', onclick: async () => { try { await navigator.clipboard.writeText(t); UI.toast('Copiado'); } catch (e) { } } });
+    if (a.cobertura?.length) box.append(el('ul', { class: 'rv-list' }, a.cobertura.map(c => el('li', {}, el('span', { class: 'pill cov-' + c.status, text: c.status }), ' ', el('b', { text: c.ponto }), c.comentario ? ' — ' + c.comentario : ''))));
+    const sec = (t, arr) => { if (arr?.length) box.append(el('h5', { text: t }), el('ul', { class: 'rv-list' }, arr.map(x => el('li', { text: x })))); };
+    sec('Assuntos acrescentados na hora', a.acrescentados);
+    sec('Frases marcantes (improviso)', a.frases_marcantes);
+    if (a.resumo_redes?.length) { box.append(el('h5', { text: 'Para as redes sociais' })); a.resumo_redes.forEach(t => box.append(el('div', { class: 'rp-post' }, el('p', { text: t }), copy(t)))); }
+    if (a.devocional) box.append(el('h5', { text: 'Devocional da semana' }), el('div', { class: 'rp-post' }, el('p', { text: a.devocional }), copy(a.devocional)));
+    sec('Para a próxima vez', a.sugestoes);
+    box.append(el('p', { class: 'muted small', text: `Análise por ${a.provider === 'gemini' ? 'Gemini' : 'Claude'} em ${new Date(a.at).toLocaleString('pt-BR')}.` }));
   }
 };
 

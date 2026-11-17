@@ -9,7 +9,7 @@ const Estimate = {
   blockExtraMin(b) { return (b.type === 'ink' && b.ink?.strokes?.length) || b.type === 'image' ? this.EXTRA_VISUAL : 0; },
   samples() {
     const out = [];
-    for (const s of App.sermons.values()) for (const p of (s.preached || [])) if (p.words > 30 && p.minutes >= 3) out.push({ k: p.minutes / p.words, t: p.at || 0 });
+    for (const s of App.sermons.values()) for (const p of (s.preached || [])) if (p.calib !== false && p.words > 30 && p.minutes >= 3) out.push({ k: p.minutes / p.words, t: p.at || 0 });
     return out.sort((a, b) => b.t - a.t).slice(0, 12);
   },
   /* minutos por palavra: mediana das pregações registradas; senão, padrão */
