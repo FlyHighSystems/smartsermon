@@ -4,7 +4,7 @@ const Reader = {
   open(s) {
     if (!s) return; App.flush();
     this.s = s; s.settings ||= {}; const st = s.settings;
-    st.fontSize ||= 34; st.mode ||= 'scroll'; st.speed ||= 3; if (st.serif == null) st.serif = true;
+    st.fontSize ||= 34; st.mode ||= 'scroll'; st.speed ||= 3;
     this.active = true; this.playing = false; this.seg = 0; this.t0 = Date.now();
     const R = $('#reader'); R.hidden = false; document.body.classList.add('reading');
     $('#r-title').textContent = s.title;
@@ -28,7 +28,7 @@ const Reader = {
   async keepAwake() { try { if ('wakeLock' in navigator) this.wake = await navigator.wakeLock.request('screen'); } catch (e) { } },
   applyLook() {
     const st = this.s.settings, R = $('#reader');
-    R.dataset.theme = Theme.reader(); $('#r-theme').textContent = { auto: 'Tema: Auto', dark: 'Escuro', sepia: 'Sépia', light: 'Claro' }[Theme.readerMode()]; R.dataset.mode = st.mode; R.classList.toggle('serif', !!st.serif);
+    R.dataset.theme = Theme.reader(); $('#r-theme').textContent = { auto: 'Tema: Auto', dark: 'Escuro', sepia: 'Sépia', light: 'Claro' }[Theme.readerMode()]; R.dataset.mode = st.mode; R.classList.toggle('serif', !!App.meta.readerSerif);
     $('#r-content').style.fontSize = st.fontSize + 'px';
     $('#r-size').textContent = Math.round(st.fontSize);
     $('#r-speed').textContent = st.speed;
@@ -173,7 +173,7 @@ const Reader = {
     $('#r-faster').onclick = () => { this.s.settings.speed = clamp(this.s.settings.speed + 1, 1, 20); this.applyLook(); App.touch(this.s); };
     $$('#r-modes button').forEach(b => b.onclick = () => this.setMode(b.dataset.mode));
     $('#r-theme').onclick = () => { const th = ['auto', 'dark', 'sepia', 'light']; App.meta.readerTheme = th[(th.indexOf(Theme.readerMode()) + 1) % 4]; App.saveMeta(); this.applyLook(); this.render(); };
-    $('#r-font').onclick = () => { this.s.settings.serif = !this.s.settings.serif; this.applyLook(); App.touch(this.s); };
+    $('#r-font').onclick = () => { App.meta.readerSerif = !App.meta.readerSerif; App.saveMeta(); this.applyLook(); };
     $('#r-timer').onclick = () => { this.t0 = Date.now(); this.updateClock(); };
     $('#r-full').onclick = () => { try { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); } catch (e) { } };
 

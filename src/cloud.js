@@ -135,7 +135,7 @@ const Cloud = {
   /* Cadernos/seções/tipos: une por id; o mais recente vence nos itens em comum; exclusões viajam como lista */
   metaPayload() {
     const m = App.meta;
-    return { notebooks: m.notebooks, sections: m.sections, customTypes: m.customTypes || [], deleted: m.deleted || {}, theme: m.theme, readerTheme: m.readerTheme };
+    return { notebooks: m.notebooks, sections: m.sections, customTypes: m.customTypes || [], deleted: m.deleted || {}, theme: m.theme, readerTheme: m.readerTheme, readerSerif: !!m.readerSerif };
   },
   async syncMeta() {
     const r = await this.rest('/rest/v1/user_meta?select=data,updated_at,server_updated');
@@ -163,7 +163,7 @@ const Cloud = {
       m.notebooks = merge(m.notebooks, rd.notebooks, 'notebooks');
       m.sections = merge(m.sections.map(s => ({ ...s, nb: this.remapNb[s.nb] || s.nb })), rd.sections, 'sections');
       m.customTypes = merge(m.customTypes || [], rd.customTypes, 'customTypes');
-      if (remote.updated_at > m.metaUpdated) { if (rd.theme) m.theme = rd.theme; if (rd.readerTheme) m.readerTheme = rd.readerTheme; }
+      if (remote.updated_at > m.metaUpdated) { if (rd.theme) m.theme = rd.theme; if (rd.readerTheme) m.readerTheme = rd.readerTheme; if (rd.readerSerif != null) m.readerSerif = rd.readerSerif; }
       this.st.lastMeta = remote.server_updated; changed = true;
       if (!m.notebooks.length) { const nb = { id: uid(), name: 'Ministrações', color: '#7719aa' }; m.notebooks.push(nb); }
       if (!m.notebooks.some(n => n.id === m.currentNb)) m.currentNb = m.notebooks[0].id;

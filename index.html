@@ -254,8 +254,7 @@ a.ref{color:var(--rverse);text-decoration:underline dotted;text-underline-offset
   #editor-inner{padding:16px 18px 120px}
   .rtab{padding:8px 10px}.brand{display:none}
 }
-@media (max-width:1100px){.hide-sm{display:none}}
-@media (max-width:640px){#btn-export,#btn-bible{font-size:0;padding:7px 10px}#btn-export:before{content:"⇩";font-size:16px}#btn-bible:before{content:"📖";font-size:16px}.s-title{font-size:24px}}
+
 .onenote-link{font-size:13px;padding:2px 12px 8px}
 
 /* Importação do OneNote */
@@ -297,6 +296,15 @@ a.ref{color:var(--rverse);text-decoration:underline dotted;text-underline-offset
 .page-bulk select{flex:1;min-width:120px;min-height:30px;padding:4px}
 .sel-row{display:flex;gap:10px;align-items:center}.sel-row input{width:18px;height:18px}
 .imp-secs{display:flex;flex-wrap:wrap;gap:6px}
+
+/* Barra superior compacta (tablet na vertical) */
+.top-right{gap:4px}
+.tb{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;min-height:34px;font-size:14px}
+.tb-i{font-size:15px;line-height:1}
+.topbar .btn.preach{padding:6px 12px;min-height:34px}
+@media (max-width:1280px){.tb-l{display:none}.tb{padding:5px 9px}.brand{font-size:15px}}
+@media (max-width:1050px){.brand span:not(.logo),.brand{font-size:0;gap:0}.brand .logo{font-size:16px}.rtab{padding:8px 9px;font-size:14px}.theme-btn{font-size:0!important;min-width:34px}.theme-btn:before{content:"◐";font-size:16px}.topbar{gap:6px;padding:0 6px}}
+@media (max-width:640px){.s-title{font-size:24px}.rtabs .rtab{padding:8px 6px;font-size:13px}}
 </style>
 </head>
 <body>
@@ -311,9 +319,9 @@ a.ref{color:var(--rverse);text-decoration:underline dotted;text-underline-offset
   <div class="top-right">
     <button class="btn ghost cloud-btn" id="btn-cloud" title="Nuvem">☁ Entrar</button>
     <button class="icon-btn theme-btn" id="btn-theme" title="Tema do app"></button>
-    <button class="btn ghost" id="btn-import" title="Importar do OneNote, Word ou backup">⇪ Importar <span class="hide-sm">do OneNote</span></button>
-    <button class="btn ghost" id="btn-export">Exportar</button>
-    <button class="btn ghost" id="btn-bible">📖 Bíblia</button>
+    <button class="btn ghost tb" id="btn-import" title="Importar (OneNote, Word, backup)"><span class="tb-i">⇪</span><span class="tb-l">Importar</span></button>
+    <button class="btn ghost tb" id="btn-export" title="Exportar (PDF, Word, backup)"><span class="tb-i">⇩</span><span class="tb-l">Exportar</span></button>
+    <button class="btn ghost tb" id="btn-bible" title="Bíblia"><span class="tb-i">📖</span><span class="tb-l">Bíblia</span></button>
     <button class="btn preach" id="btn-preach">▶ Pregar</button>
   </div>
 </header>
@@ -455,7 +463,7 @@ a.ref{color:var(--rverse);text-decoration:underline dotted;text-underline-offset
     <div class="r-grp"><button class="r-btn" id="r-smaller" title="Letra menor">A−</button><span id="r-size" class="r-val"></span><button class="r-btn" id="r-bigger" title="Letra maior">A+</button></div>
     <div class="r-grp only-scroll"><button class="r-btn" id="r-slower" title="Mais devagar">−</button><span class="r-val" title="Velocidade">⇣<span id="r-speed"></span></span><button class="r-btn" id="r-faster" title="Mais rápido">+</button></div>
     <button class="r-btn" id="r-play" title="Rolar / pausar">▶</button>
-    <button class="r-btn" id="r-font" title="Serifa / sem serifa">Aa</button>
+    <button class="r-btn" id="r-font" title="Estilo da letra (com ou sem serifa)">Aa</button>
     <button class="r-btn" id="r-theme" title="Tema da leitura: Auto (segue o app) / Escuro / Sépia / Claro">Tema</button>
     <button class="r-btn" id="r-full" title="Tela cheia">⛶</button>
     <span class="r-est" id="r-est"></span><span class="r-timer" id="r-timer">00:00</span><span class="r-clock" id="r-clock"></span>
@@ -1502,19 +1510,37 @@ const App = {
     if (!silent) UI.toast(`${BLOCK_TYPES[b.type].label} removido`, { label: 'Desfazer', fn: () => this.insertBlock(b.type, b, i) });
   },
   typeMenu(b, anchor) {
-    const types = TEXT_TYPES();
-    if (!types.includes(b.type)) { UI.toast('Este bloco não pode mudar de tipo'); return; }
-    const m = UI.modal({ title: 'Mudar tipo do bloco', body: el('div', { class: 'type-grid' }, types.map(t => el('button', { class: 'chip t-' + t + (t === b.type ? ' on' : ''), text: BLOCK_TYPES[t].label, onclick: () => {
-      b.type = t; if (t === 'point') b.html = htmlToText(b.html).split('\n')[0];
+    const types = [...TEXT_TYPES(), 'verse'];
+    if (!types.includes(b.type)) { UI.toast('Desenhos e imagens não mudam de tipo'); return; }
+    const m = UI.modal({ title: 'Mudar tipo do bloco', body: el('div', { class: 'type-grid' }, types.map(t => el('button', { class: 'chip t-' + t + (t === b.type ? ' on' : ''), style: isCallout(t) ? { color: blockColor(t) } : null, text: BLOCK_TYPES[t].label, onclick: () => {
+      this.convertBlock(b, t);
       const node = $(`#blocks .block[data-id="${b.id}"]`); node.replaceWith(this.blockEl(b)); this.numberPoints(); this.touch(); m.close();
     } }))) });
+  },
+  convertBlock(b, t) {
+    if (t === b.type) return;
+    const text = htmlToText(b.html);
+    if (t === 'verse') {
+      // "Jo 3:16 Porque Deus amou…" -> referência + texto
+      const lines = text.split('\n'); const first = lines[0].trim();
+      const m = first.match(/^(.{2,40}?\d{1,3}[:.]\d{1,3}(?:\s?[-–]\s?\d{1,3})?)(?:\s*\(([^)]{1,12})\))?\s*[-–:]?\s*(.*)$/);
+      const r = m && parseRef(m[1]);
+      if (r) { b.ref = refLabel(r); if (m[2]) b.verLabel = m[2]; const rest = [m[3], ...lines.slice(1)].filter(Boolean).join('\n'); b.html = esc(rest).replace(/\n/g, '<br>'); }
+      else if (parseRef(first)) { b.ref = refLabel(parseRef(first)); b.html = esc(lines.slice(1).join('\n')).replace(/\n/g, '<br>'); }
+      b.type = 'verse'; return;
+    }
+    if (b.type === 'verse') { // de versículo para texto: mantém a referência no começo
+      b.html = (b.ref ? `<b>${esc(b.ref)}</b><br>` : '') + (b.html || ''); delete b.ref; delete b.version; delete b.verLabel;
+    }
+    if (t === 'point') b.html = esc(htmlToText(b.html).split('\n')[0]);
+    b.type = t;
   },
 };
 
 function blankSermon(sec) {
   return { id: uid(), sec, title: 'Nova ministração', date: todayISO(), passage: '', duration: 40,
     blocks: [{ id: uid(), type: 'point', html: '' }, { id: uid(), type: 'text', html: '' }],
-    settings: { fontSize: 34, mode: 'scroll', speed: 3, serif: true }, created: Date.now(), updated: Date.now() };
+    settings: { fontSize: 34, mode: 'scroll', speed: 3 }, created: Date.now(), updated: Date.now() };
 }
 function welcomeSermon(sec) {
   const s = blankSermon(sec);
@@ -1664,7 +1690,7 @@ const Reader = {
   open(s) {
     if (!s) return; App.flush();
     this.s = s; s.settings ||= {}; const st = s.settings;
-    st.fontSize ||= 34; st.mode ||= 'scroll'; st.speed ||= 3; if (st.serif == null) st.serif = true;
+    st.fontSize ||= 34; st.mode ||= 'scroll'; st.speed ||= 3;
     this.active = true; this.playing = false; this.seg = 0; this.t0 = Date.now();
     const R = $('#reader'); R.hidden = false; document.body.classList.add('reading');
     $('#r-title').textContent = s.title;
@@ -1688,7 +1714,7 @@ const Reader = {
   async keepAwake() { try { if ('wakeLock' in navigator) this.wake = await navigator.wakeLock.request('screen'); } catch (e) { } },
   applyLook() {
     const st = this.s.settings, R = $('#reader');
-    R.dataset.theme = Theme.reader(); $('#r-theme').textContent = { auto: 'Tema: Auto', dark: 'Escuro', sepia: 'Sépia', light: 'Claro' }[Theme.readerMode()]; R.dataset.mode = st.mode; R.classList.toggle('serif', !!st.serif);
+    R.dataset.theme = Theme.reader(); $('#r-theme').textContent = { auto: 'Tema: Auto', dark: 'Escuro', sepia: 'Sépia', light: 'Claro' }[Theme.readerMode()]; R.dataset.mode = st.mode; R.classList.toggle('serif', !!App.meta.readerSerif);
     $('#r-content').style.fontSize = st.fontSize + 'px';
     $('#r-size').textContent = Math.round(st.fontSize);
     $('#r-speed').textContent = st.speed;
@@ -1833,7 +1859,7 @@ const Reader = {
     $('#r-faster').onclick = () => { this.s.settings.speed = clamp(this.s.settings.speed + 1, 1, 20); this.applyLook(); App.touch(this.s); };
     $$('#r-modes button').forEach(b => b.onclick = () => this.setMode(b.dataset.mode));
     $('#r-theme').onclick = () => { const th = ['auto', 'dark', 'sepia', 'light']; App.meta.readerTheme = th[(th.indexOf(Theme.readerMode()) + 1) % 4]; App.saveMeta(); this.applyLook(); this.render(); };
-    $('#r-font').onclick = () => { this.s.settings.serif = !this.s.settings.serif; this.applyLook(); App.touch(this.s); };
+    $('#r-font').onclick = () => { App.meta.readerSerif = !App.meta.readerSerif; App.saveMeta(); this.applyLook(); };
     $('#r-timer').onclick = () => { this.t0 = Date.now(); this.updateClock(); };
     $('#r-full').onclick = () => { try { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); } catch (e) { } };
 
@@ -2986,7 +3012,7 @@ const Cloud = {
   /* Cadernos/seções/tipos: une por id; o mais recente vence nos itens em comum; exclusões viajam como lista */
   metaPayload() {
     const m = App.meta;
-    return { notebooks: m.notebooks, sections: m.sections, customTypes: m.customTypes || [], deleted: m.deleted || {}, theme: m.theme, readerTheme: m.readerTheme };
+    return { notebooks: m.notebooks, sections: m.sections, customTypes: m.customTypes || [], deleted: m.deleted || {}, theme: m.theme, readerTheme: m.readerTheme, readerSerif: !!m.readerSerif };
   },
   async syncMeta() {
     const r = await this.rest('/rest/v1/user_meta?select=data,updated_at,server_updated');
@@ -3014,7 +3040,7 @@ const Cloud = {
       m.notebooks = merge(m.notebooks, rd.notebooks, 'notebooks');
       m.sections = merge(m.sections.map(s => ({ ...s, nb: this.remapNb[s.nb] || s.nb })), rd.sections, 'sections');
       m.customTypes = merge(m.customTypes || [], rd.customTypes, 'customTypes');
-      if (remote.updated_at > m.metaUpdated) { if (rd.theme) m.theme = rd.theme; if (rd.readerTheme) m.readerTheme = rd.readerTheme; }
+      if (remote.updated_at > m.metaUpdated) { if (rd.theme) m.theme = rd.theme; if (rd.readerTheme) m.readerTheme = rd.readerTheme; if (rd.readerSerif != null) m.readerSerif = rd.readerSerif; }
       this.st.lastMeta = remote.server_updated; changed = true;
       if (!m.notebooks.length) { const nb = { id: uid(), name: 'Ministrações', color: '#7719aa' }; m.notebooks.push(nb); }
       if (!m.notebooks.some(n => n.id === m.currentNb)) m.currentNb = m.notebooks[0].id;

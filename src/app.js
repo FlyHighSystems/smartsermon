@@ -384,19 +384,37 @@ const App = {
     if (!silent) UI.toast(`${BLOCK_TYPES[b.type].label} removido`, { label: 'Desfazer', fn: () => this.insertBlock(b.type, b, i) });
   },
   typeMenu(b, anchor) {
-    const types = TEXT_TYPES();
-    if (!types.includes(b.type)) { UI.toast('Este bloco não pode mudar de tipo'); return; }
-    const m = UI.modal({ title: 'Mudar tipo do bloco', body: el('div', { class: 'type-grid' }, types.map(t => el('button', { class: 'chip t-' + t + (t === b.type ? ' on' : ''), text: BLOCK_TYPES[t].label, onclick: () => {
-      b.type = t; if (t === 'point') b.html = htmlToText(b.html).split('\n')[0];
+    const types = [...TEXT_TYPES(), 'verse'];
+    if (!types.includes(b.type)) { UI.toast('Desenhos e imagens não mudam de tipo'); return; }
+    const m = UI.modal({ title: 'Mudar tipo do bloco', body: el('div', { class: 'type-grid' }, types.map(t => el('button', { class: 'chip t-' + t + (t === b.type ? ' on' : ''), style: isCallout(t) ? { color: blockColor(t) } : null, text: BLOCK_TYPES[t].label, onclick: () => {
+      this.convertBlock(b, t);
       const node = $(`#blocks .block[data-id="${b.id}"]`); node.replaceWith(this.blockEl(b)); this.numberPoints(); this.touch(); m.close();
     } }))) });
+  },
+  convertBlock(b, t) {
+    if (t === b.type) return;
+    const text = htmlToText(b.html);
+    if (t === 'verse') {
+      // "Jo 3:16 Porque Deus amou…" -> referência + texto
+      const lines = text.split('\n'); const first = lines[0].trim();
+      const m = first.match(/^(.{2,40}?\d{1,3}[:.]\d{1,3}(?:\s?[-–]\s?\d{1,3})?)(?:\s*\(([^)]{1,12})\))?\s*[-–:]?\s*(.*)$/);
+      const r = m && parseRef(m[1]);
+      if (r) { b.ref = refLabel(r); if (m[2]) b.verLabel = m[2]; const rest = [m[3], ...lines.slice(1)].filter(Boolean).join('\n'); b.html = esc(rest).replace(/\n/g, '<br>'); }
+      else if (parseRef(first)) { b.ref = refLabel(parseRef(first)); b.html = esc(lines.slice(1).join('\n')).replace(/\n/g, '<br>'); }
+      b.type = 'verse'; return;
+    }
+    if (b.type === 'verse') { // de versículo para texto: mantém a referência no começo
+      b.html = (b.ref ? `<b>${esc(b.ref)}</b><br>` : '') + (b.html || ''); delete b.ref; delete b.version; delete b.verLabel;
+    }
+    if (t === 'point') b.html = esc(htmlToText(b.html).split('\n')[0]);
+    b.type = t;
   },
 };
 
 function blankSermon(sec) {
   return { id: uid(), sec, title: 'Nova ministração', date: todayISO(), passage: '', duration: 40,
     blocks: [{ id: uid(), type: 'point', html: '' }, { id: uid(), type: 'text', html: '' }],
-    settings: { fontSize: 34, mode: 'scroll', speed: 3, serif: true }, created: Date.now(), updated: Date.now() };
+    settings: { fontSize: 34, mode: 'scroll', speed: 3 }, created: Date.now(), updated: Date.now() };
 }
 function welcomeSermon(sec) {
   const s = blankSermon(sec);

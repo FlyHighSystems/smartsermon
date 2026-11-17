@@ -243,8 +243,7 @@ a.ref{color:var(--rverse);text-decoration:underline dotted;text-underline-offset
   #editor-inner{padding:16px 18px 120px}
   .rtab{padding:8px 10px}.brand{display:none}
 }
-@media (max-width:1100px){.hide-sm{display:none}}
-@media (max-width:640px){#btn-export,#btn-bible{font-size:0;padding:7px 10px}#btn-export:before{content:"⇩";font-size:16px}#btn-bible:before{content:"📖";font-size:16px}.s-title{font-size:24px}}
+
 .onenote-link{font-size:13px;padding:2px 12px 8px}
 
 /* Importação do OneNote */
@@ -286,3 +285,12 @@ a.ref{color:var(--rverse);text-decoration:underline dotted;text-underline-offset
 .page-bulk select{flex:1;min-width:120px;min-height:30px;padding:4px}
 .sel-row{display:flex;gap:10px;align-items:center}.sel-row input{width:18px;height:18px}
 .imp-secs{display:flex;flex-wrap:wrap;gap:6px}
+
+/* Barra superior compacta (tablet na vertical) */
+.top-right{gap:4px}
+.tb{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;min-height:34px;font-size:14px}
+.tb-i{font-size:15px;line-height:1}
+.topbar .btn.preach{padding:6px 12px;min-height:34px}
+@media (max-width:1280px){.tb-l{display:none}.tb{padding:5px 9px}.brand{font-size:15px}}
+@media (max-width:1050px){.brand span:not(.logo),.brand{font-size:0;gap:0}.brand .logo{font-size:16px}.rtab{padding:8px 9px;font-size:14px}.theme-btn{font-size:0!important;min-width:34px}.theme-btn:before{content:"◐";font-size:16px}.topbar{gap:6px;padding:0 6px}}
+@media (max-width:640px){.s-title{font-size:24px}.rtabs .rtab{padding:8px 6px;font-size:13px}}
