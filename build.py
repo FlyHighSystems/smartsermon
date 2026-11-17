@@ -1,0 +1,21 @@
+import json, pathlib
+R = pathlib.Path(__file__).parent; S = R/'src'; D = R  # o site é publicado a partir da raiz do repositório
+js = '\n'.join((S/f).read_text() for f in ['core.js','books.js','bible.js','ink.js','theme.js','estimate.js','app.js','reader.js','porter.js','onenote.js','cloud.js','main.js'])
+html = (S/'index.html').read_text().replace('/*CSS*/', (S/'styles.css').read_text()).replace('/*JS*/', js)
+(D/'index.html').write_text(html)
+(D/'manifest.webmanifest').write_text(json.dumps({
+ "name":"SmartSermon","short_name":"SmartSermon","description":"Prepare e pregue suas ministrações","start_url":"./","scope":"./","display":"standalone",
+ "background_color":"#7719aa","theme_color":"#7719aa","lang":"pt-BR",
+ "icons":[{"src":"icon-192.png","sizes":"192x192","type":"image/png"},{"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}]}, ensure_ascii=False, indent=1))
+(D/'sw.js').write_text("""const C='smartsermon-v1';
+const FILES=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png'];
+self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(FILES)));self.skipWaiting();});
+self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
+self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==location.origin)return;
+ e.respondWith(caches.open(C).then(async c=>{const hit=await c.match(e.request);const net=fetch(e.request).then(r=>{if(r.ok)c.put(e.request,r.clone());return r;}).catch(()=>hit);return hit||net;}));});
+""")
+(D/'supabase.sql').write_text((S/'supabase.sql').read_text())
+if not (D/'config.js').exists():
+    (D/'config.js').write_text("// Configuração da nuvem (Supabase). A chave 'anon public' é feita para ficar no navegador:\n// a proteção dos dados vem das regras de segurança (RLS) criadas pelo supabase.sql.\nwindow.SMARTSERMON_CONFIG = {\n  supabaseUrl: '',      // ex.: 'https://abcdefgh.supabase.co'\n  supabaseAnonKey: ''   // Project Settings > API > anon public\n};\n")
+(D/'.nojekyll').write_text('')
+print('ok', len(html)//1024, 'KB')

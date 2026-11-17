@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#7719aa">
+<meta name="color-scheme" content="light dark">
+<script>try{var m=JSON.parse(localStorage.getItem("mp-theme")||"null")||"auto";document.documentElement.dataset.theme=m==="auto"?(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):m}catch(e){}</script>
+<title>SmartSermon</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%237719aa'/%3E%3Cpath d='M46 22c-2-4-7-7-14-7-9 0-15 5-15 11 0 13 28 8 28 20 0 6-6 10-14 10-7 0-12-3-15-8' fill='none' stroke='%23fff' stroke-width='7' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>/*CSS*/</style>
+</head>
+<body>
+<header class="topbar">
+  <button class="icon-btn" id="toggle-nav" title="Mostrar/ocultar cadernos" aria-label="Menu">☰</button>
+  <div class="brand"><span class="logo">S</span> SmartSermon</div>
+  <nav class="rtabs">
+    <button class="rtab on" data-tab="home">Página Inicial</button>
+    <button class="rtab" data-tab="insert">Inserir</button>
+    <button class="rtab" data-tab="draw">Desenhar</button>
+  </nav>
+  <div class="top-right">
+    <button class="btn ghost cloud-btn" id="btn-cloud" title="Nuvem">☁ Entrar</button>
+    <button class="icon-btn theme-btn" id="btn-theme" title="Tema do app"></button>
+    <button class="btn ghost" id="btn-import" title="Importar do OneNote, Word ou backup">⇪ Importar <span class="hide-sm">do OneNote</span></button>
+    <button class="btn ghost" id="btn-export">Exportar</button>
+    <button class="btn ghost" id="btn-bible">📖 Bíblia</button>
+    <button class="btn preach" id="btn-preach">▶ Pregar</button>
+  </div>
+</header>
+<div class="ribbon-body">
+  <div class="rpanel" data-panel="home">
+    <div class="rgroup">
+      <button data-cmd="bold" class="rb b" title="Negrito (Ctrl+B)">N</button>
+      <button data-cmd="italic" class="rb i" title="Itálico (Ctrl+I)">I</button>
+      <button data-cmd="underline" class="rb u" title="Sublinhado (Ctrl+U)">S</button>
+      <button data-cmd="strikeThrough" class="rb" title="Tachado"><s>ab</s></button>
+    </div>
+    <div class="rgroup">
+      <span class="rlabel">Realce</span>
+      <button data-hl="#fff100" class="sw" style="background:#fff100" title="Marca-texto amarelo"></button>
+      <button data-hl="#7fff7f" class="sw" style="background:#7fff7f" title="Marca-texto verde"></button>
+      <button data-hl="#7fdcff" class="sw" style="background:#7fdcff" title="Marca-texto azul"></button>
+      <button data-hl="#ffb3e6" class="sw" style="background:#ffb3e6" title="Marca-texto rosa"></button>
+      <button data-hl="transparent" class="sw none" title="Sem realce">⌀</button>
+    </div>
+    <div class="rgroup">
+      <span class="rlabel">Cor</span>
+      <button data-color="#201f1e" class="sw" style="background:#201f1e" title="Preto"></button>
+      <button data-color="#c50f1f" class="sw" style="background:#c50f1f" title="Vermelho"></button>
+      <button data-color="#0f6cbd" class="sw" style="background:#0f6cbd" title="Azul"></button>
+      <button data-color="#107c10" class="sw" style="background:#107c10" title="Verde"></button>
+      <button data-color="#7719aa" class="sw" style="background:#7719aa" title="Roxo"></button>
+    </div>
+    <div class="rgroup">
+      <button data-cmd="insertUnorderedList" class="rb" title="Marcadores">• Lista</button>
+      <button data-cmd="insertOrderedList" class="rb" title="Numeração">1. Lista</button>
+      <button data-cmd="removeFormat" class="rb" title="Limpar formatação">Limpar</button>
+    </div>
+    <div class="rgroup">
+      <button data-cmd="undo" class="rb" title="Desfazer (Ctrl+Z)">↶</button>
+      <button data-cmd="redo" class="rb" title="Refazer (Ctrl+Y)">↷</button>
+    </div>
+  </div>
+  <div class="rpanel" data-panel="insert" hidden>
+    <div class="rgroup">
+      <button data-insert="point" class="rb t-point">Ponto</button>
+      <button data-insert="intro" class="rb" style="color:#4f6bed">Introdução</button>
+      <button data-insert="text" class="rb">Texto</button>
+      <button data-insert="verse" class="rb t-verse">Versículo</button>
+      <button data-insert="illus" class="rb t-illus">Ilustração</button>
+      <button data-insert="app" class="rb t-app">Aplicação</button>
+      <button data-insert="quote" class="rb t-quote">Frase-chave</button>
+      <button data-insert="concl" class="rb" style="color:#b4009e">Conclusão</button>
+    </div>
+    <div class="rgroup" id="rg-custom"></div>
+    <div class="rgroup">
+      <button data-insert="ink" class="rb t-ink">✎ Desenho</button>
+      <button data-insert="image" class="rb">🖼 Imagem</button>
+    </div>
+    <span class="rhint">Insere logo abaixo do bloco onde está o cursor.</span>
+  </div>
+  <div class="rpanel" data-panel="draw" hidden>
+    <div class="rgroup">
+      <button data-tool="pen" class="rb">✎ Caneta</button>
+      <button data-tool="marker" class="rb">▮ Marca-texto</button>
+      <button data-tool="eraser" class="rb">⌫ Borracha</button>
+    </div>
+    <div class="rgroup">
+      <span class="rlabel">Caneta</span>
+      <button data-pen="#1b1b1b" class="sw" style="background:#1b1b1b"></button>
+      <button data-pen="#0f6cbd" class="sw" style="background:#0f6cbd"></button>
+      <button data-pen="#c50f1f" class="sw" style="background:#c50f1f"></button>
+      <button data-pen="#107c10" class="sw" style="background:#107c10"></button>
+      <button data-pen="#7719aa" class="sw" style="background:#7719aa"></button>
+    </div>
+    <div class="rgroup">
+      <span class="rlabel">Marca-texto</span>
+      <button data-mk="#ffd400" class="sw" style="background:#ffd400"></button>
+      <button data-mk="#5ee35e" class="sw" style="background:#5ee35e"></button>
+      <button data-mk="#ff7ad1" class="sw" style="background:#ff7ad1"></button>
+    </div>
+    <div class="rgroup">
+      <span class="rlabel">Espessura</span>
+      <button data-size="1.2" class="rb">fina</button>
+      <button data-size="2.2" class="rb">média</button>
+      <button data-size="4" class="rb">grossa</button>
+    </div>
+    <div class="rgroup">
+      <label class="rcheck no-focus"><input type="checkbox" id="ink-finger"> Desenhar com o dedo</label>
+      <button id="ink-undo" class="rb">↶ Desfazer traço</button>
+      <button id="ink-clear" class="rb">Limpar</button>
+      <button data-insert="ink" class="rb t-ink">+ Novo desenho</button>
+    </div>
+  </div>
+</div>
+
+<main class="main">
+  <nav id="nb-pane">
+    <div class="pane-head">
+      <select id="nb-select" title="Caderno"></select>
+      <button class="icon-btn sm" id="nb-menu" title="Opções do caderno">⋯</button>
+      <button class="icon-btn sm" id="nb-add" title="Novo caderno">＋</button>
+    </div>
+    <div id="sec-list"></div>
+    <button class="btn link" id="sec-add">＋ Adicionar seção</button>
+  </nav>
+  <nav id="pages-pane">
+    <div class="pane-head">
+      <b id="pages-title"></b>
+      <button class="btn sm primary" id="page-add" title="Nova ministração">＋ Página</button>
+    </div>
+    <input id="page-search" class="inp search" placeholder="Pesquisar em tudo…">
+    <button class="btn link onenote-link" id="page-import">⇪ Importar páginas do OneNote</button>
+    <div id="page-list"></div>
+  </nav>
+  <section id="editor"><div id="editor-inner"></div></section>
+  <aside id="bible-pane" hidden>
+    <div class="bp-head">
+      <select id="bp-version" title="Versão"></select>
+      <button class="icon-btn sm" id="bp-manage" title="Gerenciar versões">⚙</button>
+      <button class="icon-btn sm" id="bp-close" title="Fechar">✕</button>
+    </div>
+    <div class="bp-search"><input id="bp-search" class="inp" placeholder="Jo 3:16, 1 Co 13 ou uma palavra"><button class="btn sm" id="bp-go">Ir</button></div>
+    <div class="bp-nav">
+      <button class="icon-btn sm" id="bp-prev" title="Capítulo anterior">‹</button>
+      <select id="bp-book"></select><select id="bp-chapter"></select>
+      <button class="icon-btn sm" id="bp-next" title="Próximo capítulo">›</button>
+    </div>
+    <div id="bp-verses"></div>
+    <div class="bp-actions">
+      <span id="bp-sel-label" class="muted small"></span>
+      <div><button class="btn sm" id="bp-copy" disabled>Copiar</button> <button class="btn sm primary" id="bp-insert" disabled>Inserir no sermão</button></div>
+    </div>
+    <div id="bp-attrib" class="bp-attrib"></div>
+  </aside>
+</main>
+
+<div id="reader" hidden>
+  <div class="r-top">
+    <button class="r-btn" id="r-close" title="Sair (Esc)">✕</button>
+    <div class="r-title" id="r-title"></div>
+    <div class="r-seg" id="r-modes"><button data-mode="scroll">Rolagem</button><button data-mode="points">Pontos</button></div>
+    <div class="r-grp"><button class="r-btn" id="r-smaller" title="Letra menor">A−</button><span id="r-size" class="r-val"></span><button class="r-btn" id="r-bigger" title="Letra maior">A+</button></div>
+    <div class="r-grp only-scroll"><button class="r-btn" id="r-slower" title="Mais devagar">−</button><span class="r-val" title="Velocidade">⇣<span id="r-speed"></span></span><button class="r-btn" id="r-faster" title="Mais rápido">+</button></div>
+    <button class="r-btn" id="r-play" title="Rolar / pausar">▶</button>
+    <button class="r-btn" id="r-font" title="Serifa / sem serifa">Aa</button>
+    <button class="r-btn" id="r-theme" title="Tema da leitura: Auto (segue o app) / Escuro / Sépia / Claro">Tema</button>
+    <button class="r-btn" id="r-full" title="Tela cheia">⛶</button>
+    <span class="r-est" id="r-est"></span><span class="r-timer" id="r-timer">00:00</span><span class="r-clock" id="r-clock"></span>
+  </div>
+  <div id="r-scroll"><div id="r-content"></div></div>
+  <div class="r-status" id="r-status"></div>
+  <div class="r-flash" id="r-flash"></div>
+  <div class="r-pop" id="r-pop" hidden></div>
+</div>
+
+<div id="print-area"></div>
+<div id="toasts"></div>
+<script src="config.js"></script>
+<script>/*JS*/</script>
+</body>
+</html>
