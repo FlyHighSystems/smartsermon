@@ -2610,7 +2610,7 @@ const OneNoteUI = {
     this.route();
   },
   body() { return this.m.body.firstChild; },
-  set(...nodes) { const b = this.body(); b.innerHTML = ''; b.append(...nodes); },
+  set(...nodes) { const b = this.body(); b.innerHTML = ''; b.append(...nodes.filter(x => x != null && x !== false)); },
   route() {
     if (!MSGraph.canLogin()) return this.viewHosting();
     if (!MSGraph.clientId()) return this.viewSetup();
@@ -3059,7 +3059,7 @@ const CloudUI = {
     this.m = UI.modal({ title: 'Nuvem — usar em vários aparelhos', body, wide: true });
     this.body = body; this.route();
   },
-  set(...n) { this.body.innerHTML = ''; this.body.append(...n); },
+  set(...n) { this.body.innerHTML = ''; this.body.append(...n.filter(x => x != null && x !== false)); },
   route() { if (!Cloud.configured()) return this.viewSetup(); if (!Cloud.session) return this.viewLogin(); this.viewAccount(); },
   viewSetup() {
     const c = Cloud.cfg();

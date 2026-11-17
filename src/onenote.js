@@ -234,7 +234,7 @@ const OneNoteUI = {
     this.route();
   },
   body() { return this.m.body.firstChild; },
-  set(...nodes) { const b = this.body(); b.innerHTML = ''; b.append(...nodes); },
+  set(...nodes) { const b = this.body(); b.innerHTML = ''; b.append(...nodes.filter(x => x != null && x !== false)); },
   route() {
     if (!MSGraph.canLogin()) return this.viewHosting();
     if (!MSGraph.clientId()) return this.viewSetup();

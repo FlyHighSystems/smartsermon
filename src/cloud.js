@@ -299,7 +299,7 @@ const CloudUI = {
     this.m = UI.modal({ title: 'Nuvem — usar em vários aparelhos', body, wide: true });
     this.body = body; this.route();
   },
-  set(...n) { this.body.innerHTML = ''; this.body.append(...n); },
+  set(...n) { this.body.innerHTML = ''; this.body.append(...n.filter(x => x != null && x !== false)); },
   route() { if (!Cloud.configured()) return this.viewSetup(); if (!Cloud.session) return this.viewLogin(); this.viewAccount(); },
   viewSetup() {
     const c = Cloud.cfg();
