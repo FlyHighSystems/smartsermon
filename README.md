@@ -7,7 +7,7 @@ Web app para preparar e pregar ministrações. É feito para o Surface (Windows,
 - **Editor no estilo OneNote:** cadernos, seções e páginas. Os blocos podem ser Ponto, Introdução, Texto, Versículo, Ilustração, Aplicação, Frase-chave, Conclusão, Desenho (caneta) e Imagem, além dos tipos que você criar.
 - **Modo pregação:** rolagem automática (toque para pausar) ou ponto a ponto, pinça para mudar o tamanho da letra, cronômetro, estimativa de duração calibrada pelo seu ritmo e tela sempre ligada.
 - **Bíblia offline:** Bíblia Livre (CC BY 4.0) e outras versões para uso pessoal, com busca e inserção de versículos.
-- **Importação do OneNote:** caderno inteiro em .mht, seções em .docx/.mht, ou copiar e colar.
+- **Importação do OneNote:** **Novo caderno › Importar caderno do OneNote** (cada seção exportada vira uma seção), caderno inteiro em .mht, ou copiar e colar. Na lista de páginas, **☑ Selecionar** permite mover várias páginas para outra seção de uma vez.
 - **Exportação:** PDF, Word e backup .json.
 - **Nuvem:** login e sincronização entre aparelhos (Supabase). O app continua funcionando sem internet.
 

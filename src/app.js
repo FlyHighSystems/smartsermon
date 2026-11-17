@@ -79,12 +79,18 @@ const App = {
   /* ---- navegação ---- */
   bindNav() {
     $('#nb-select').onchange = e => { this.meta.currentNb = e.target.value; const sec = this.meta.sections.find(s => s.nb === e.target.value); this.meta.currentSec = sec?.id || null; this.saveMeta(); this.renderNav(); };
-    $('#nb-add').onclick = async () => { const n = await UI.ask('Novo caderno', '', 'Ex.: Conferência 2027'); if (!n) return; const nb = { id: uid(), name: n, color: SECTION_COLORS[this.meta.notebooks.length % 10] }; this.meta.notebooks.push(nb); const sec = { id: uid(), nb: nb.id, name: 'Geral', color: SECTION_COLORS[0] }; this.meta.sections.push(sec); this.meta.currentNb = nb.id; this.meta.currentSec = sec.id; this.saveMeta(); this.renderNav(); };
+    $('#nb-add').onclick = () => {
+      const m = UI.modal({ title: 'Novo caderno', body: el('div', { class: 'type-grid' },
+        el('button', { class: 'on-item', onclick: () => { m.close(); newEmpty(); } }, el('b', { text: 'Caderno vazio' }), el('span', { class: 'muted small', text: 'Começar do zero' })),
+        el('button', { class: 'on-item', onclick: () => { m.close(); Porter.notebookImport(); } }, el('b', { text: 'Importar caderno do OneNote' }), el('span', { class: 'muted small', text: 'Com as seções, a partir dos arquivos exportados' }))) });
+    };
+    const newEmpty = async () => { const n = await UI.ask('Novo caderno', '', 'Ex.: Conferência 2027'); if (!n) return; const nb = { id: uid(), name: n, color: SECTION_COLORS[this.meta.notebooks.length % 10] }; this.meta.notebooks.push(nb); const sec = { id: uid(), nb: nb.id, name: 'Geral', color: SECTION_COLORS[0] }; this.meta.sections.push(sec); this.meta.currentNb = nb.id; this.meta.currentSec = sec.id; this.saveMeta(); this.renderNav(); };
     $('#nb-menu').onclick = () => this.notebookMenu();
     $('#sec-add').onclick = async () => { const n = await UI.ask('Nova seção (série, tema, evento…)', ''); if (!n) return; const sec = { id: uid(), nb: this.meta.currentNb, name: n, color: SECTION_COLORS[this.meta.sections.length % 10] }; this.meta.sections.push(sec); this.meta.currentSec = sec.id; this.saveMeta(); this.renderNav(); };
     $('#page-add').onclick = () => this.newSermon();
     $('#page-import').onclick = () => Porter.importDialog();
     $('#page-search').oninput = () => this.renderPages();
+    $('#page-select').onclick = () => { this.selMode = !this.selMode; this.sel = new Set(); this.renderPages(); };
     $('#toggle-nav').onclick = () => document.body.classList.toggle('nav-collapsed');
     $('#editor').addEventListener('pointerdown', () => { if (window.innerWidth < 980) document.body.classList.add('nav-collapsed'); });
     if (window.innerWidth < 980) document.body.classList.add('nav-collapsed');
@@ -141,13 +147,44 @@ const App = {
     let items = q ? [...this.sermons.values()].filter(s => stripAccents((s.title + ' ' + s.passage + ' ' + s.blocks.map(b => (b.ref || '') + ' ' + htmlToText(b.html) + ' ' + (b.alt || '')).join(' ')).toLowerCase()).includes(q))
       : this.sectionSermons(this.meta.currentSec);
     const list = $('#page-list'); list.innerHTML = '';
+    this.sel ||= new Set(); this.renderBulk();
     if (!items.length) list.append(el('p', { class: 'muted pad', text: q ? 'Nada encontrado.' : 'Nenhuma ministração nesta seção.' }));
     for (const s of items) {
       const preview = s.passage || htmlToText(s.blocks.find(b => b.type === 'text')?.html || '').slice(0, 60);
+      if (this.selMode) {
+        const on = this.sel.has(s.id);
+        list.append(el('label', { class: 'page sel-row' + (on ? ' active' : '') },
+          el('input', { type: 'checkbox', checked: on, onchange: e => { e.target.checked ? this.sel.add(s.id) : this.sel.delete(s.id); this.renderBulk(); e.target.closest('.page').classList.toggle('active', e.target.checked); } }),
+          el('span', {}, el('div', { class: 'page-title', text: s.title || 'Sem título' }), el('div', { class: 'page-sub', text: s.date ? new Date(s.date + 'T12:00').toLocaleDateString('pt-BR') : '' }))));
+        continue;
+      }
       list.append(el('div', { class: 'page' + (this.cur?.id === s.id ? ' active' : ''), 'data-id': s.id, onclick: () => this.open(s.id) },
         el('div', { class: 'page-title', text: s.title || 'Sem título' }),
         el('div', { class: 'page-sub', text: [s.date ? new Date(s.date + 'T12:00').toLocaleDateString('pt-BR') : '', preview].filter(Boolean).join(' · ') })));
     }
+  },
+  _bulk: null,
+  renderBulk() {
+    const bar = $('#page-bulk'); bar.hidden = !this.selMode; $('#page-select').classList.toggle('on', !!this.selMode); $('#page-select').textContent = this.selMode ? '✕ Cancelar' : '☑ Selecionar';
+    if (!this.selMode) return;
+    const n = this.sel.size; bar.innerHTML = '';
+    const opts = this.meta.sections.map(x => { const nb = this.meta.notebooks.find(b => b.id === x.nb); return el('option', { value: x.id, text: `${nb?.name || ''} › ${x.name}` }); });
+    const dest = el('select', { class: 'inp' }, el('option', { value: '', text: 'Mover para…' }), opts, el('option', { value: '__new', text: '+ Nova seção…' }));
+    dest.onchange = async () => {
+      if (!n) { UI.toast('Marque as páginas primeiro'); dest.value = ''; return; }
+      let secId = dest.value; if (!secId) return;
+      if (secId === '__new') { const nm = await UI.ask('Nome da nova seção', ''); if (!nm) { dest.value = ''; return; } const sc = { id: uid(), nb: this.meta.currentNb, name: nm, color: SECTION_COLORS[this.meta.sections.length % 10] }; this.meta.sections.push(sc); secId = sc.id; }
+      for (const id of this.sel) { const s = this.sermons.get(id); if (s) { s.sec = secId; this.touch(s); } }
+      UI.toast(`${n} página(s) movida(s)`); this.sel = new Set(); this.saveMeta(); this.flush(); this.renderNav();
+    };
+    const all = el('button', { class: 'btn sm', text: 'Todas', onclick: () => { [...$$('#page-list .sel-row input')].forEach(c => { c.checked = true; c.dispatchEvent(new Event('change')); }); } });
+    const del = el('button', { class: 'btn sm danger-text', text: 'Excluir', onclick: async () => {
+      if (!n || !await UI.confirm('Excluir páginas', `Excluir ${n} ministração(ões)?`)) return;
+      for (const id of this.sel) { this.sermons.delete(id); DB.del('sermons', id); Cloud.tomb(id); }
+      if (this.cur && !this.sermons.has(this.cur.id)) { this.cur = null; this.renderEditor(); }
+      this.sel = new Set(); this.renderNav();
+    } });
+    bar.append(el('span', { class: 'small', text: `${n} selecionada(s)` }), all, dest, del);
   },
   newSermon(data = {}) {
     if (!this.meta.currentSec) { UI.toast('Crie uma seção primeiro'); return; }

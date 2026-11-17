@@ -290,6 +290,13 @@ a.ref{color:var(--rverse);text-decoration:underline dotted;text-underline-offset
 .cloud-btn[data-state=syncing]{opacity:.85}
 .cloud-btn[data-state=setup],.cloud-btn[data-state=out]{background:#fff;color:var(--accent);font-weight:600}
 @media (max-width:1100px){.cloud-btn{font-size:0}.cloud-btn:before{content:"☁";font-size:16px}}
+
+/* Seleção de várias páginas */
+.page-tools{display:flex;justify-content:flex-end;margin:-4px 4px 0}.page-tools .btn.on{color:#c50f1f}
+.page-bulk{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 8px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--panel2)}
+.page-bulk select{flex:1;min-width:120px;min-height:30px;padding:4px}
+.sel-row{display:flex;gap:10px;align-items:center}.sel-row input{width:18px;height:18px}
+.imp-secs{display:flex;flex-wrap:wrap;gap:6px}
 </style>
 </head>
 <body>
@@ -413,6 +420,8 @@ a.ref{color:var(--rverse);text-decoration:underline dotted;text-underline-offset
       <button class="btn sm primary" id="page-add" title="Nova ministração">＋ Página</button>
     </div>
     <input id="page-search" class="inp search" placeholder="Pesquisar em tudo…">
+    <div class="page-tools"><button class="btn link small" id="page-select">☑ Selecionar</button></div>
+    <div id="page-bulk" class="page-bulk" hidden></div>
     <button class="btn link onenote-link" id="page-import">⇪ Importar páginas do OneNote</button>
     <div id="page-list"></div>
   </nav>
@@ -1188,12 +1197,18 @@ const App = {
   /* ---- navegação ---- */
   bindNav() {
     $('#nb-select').onchange = e => { this.meta.currentNb = e.target.value; const sec = this.meta.sections.find(s => s.nb === e.target.value); this.meta.currentSec = sec?.id || null; this.saveMeta(); this.renderNav(); };
-    $('#nb-add').onclick = async () => { const n = await UI.ask('Novo caderno', '', 'Ex.: Conferência 2027'); if (!n) return; const nb = { id: uid(), name: n, color: SECTION_COLORS[this.meta.notebooks.length % 10] }; this.meta.notebooks.push(nb); const sec = { id: uid(), nb: nb.id, name: 'Geral', color: SECTION_COLORS[0] }; this.meta.sections.push(sec); this.meta.currentNb = nb.id; this.meta.currentSec = sec.id; this.saveMeta(); this.renderNav(); };
+    $('#nb-add').onclick = () => {
+      const m = UI.modal({ title: 'Novo caderno', body: el('div', { class: 'type-grid' },
+        el('button', { class: 'on-item', onclick: () => { m.close(); newEmpty(); } }, el('b', { text: 'Caderno vazio' }), el('span', { class: 'muted small', text: 'Começar do zero' })),
+        el('button', { class: 'on-item', onclick: () => { m.close(); Porter.notebookImport(); } }, el('b', { text: 'Importar caderno do OneNote' }), el('span', { class: 'muted small', text: 'Com as seções, a partir dos arquivos exportados' }))) });
+    };
+    const newEmpty = async () => { const n = await UI.ask('Novo caderno', '', 'Ex.: Conferência 2027'); if (!n) return; const nb = { id: uid(), name: n, color: SECTION_COLORS[this.meta.notebooks.length % 10] }; this.meta.notebooks.push(nb); const sec = { id: uid(), nb: nb.id, name: 'Geral', color: SECTION_COLORS[0] }; this.meta.sections.push(sec); this.meta.currentNb = nb.id; this.meta.currentSec = sec.id; this.saveMeta(); this.renderNav(); };
     $('#nb-menu').onclick = () => this.notebookMenu();
     $('#sec-add').onclick = async () => { const n = await UI.ask('Nova seção (série, tema, evento…)', ''); if (!n) return; const sec = { id: uid(), nb: this.meta.currentNb, name: n, color: SECTION_COLORS[this.meta.sections.length % 10] }; this.meta.sections.push(sec); this.meta.currentSec = sec.id; this.saveMeta(); this.renderNav(); };
     $('#page-add').onclick = () => this.newSermon();
     $('#page-import').onclick = () => Porter.importDialog();
     $('#page-search').oninput = () => this.renderPages();
+    $('#page-select').onclick = () => { this.selMode = !this.selMode; this.sel = new Set(); this.renderPages(); };
     $('#toggle-nav').onclick = () => document.body.classList.toggle('nav-collapsed');
     $('#editor').addEventListener('pointerdown', () => { if (window.innerWidth < 980) document.body.classList.add('nav-collapsed'); });
     if (window.innerWidth < 980) document.body.classList.add('nav-collapsed');
@@ -1250,13 +1265,44 @@ const App = {
     let items = q ? [...this.sermons.values()].filter(s => stripAccents((s.title + ' ' + s.passage + ' ' + s.blocks.map(b => (b.ref || '') + ' ' + htmlToText(b.html) + ' ' + (b.alt || '')).join(' ')).toLowerCase()).includes(q))
       : this.sectionSermons(this.meta.currentSec);
     const list = $('#page-list'); list.innerHTML = '';
+    this.sel ||= new Set(); this.renderBulk();
     if (!items.length) list.append(el('p', { class: 'muted pad', text: q ? 'Nada encontrado.' : 'Nenhuma ministração nesta seção.' }));
     for (const s of items) {
       const preview = s.passage || htmlToText(s.blocks.find(b => b.type === 'text')?.html || '').slice(0, 60);
+      if (this.selMode) {
+        const on = this.sel.has(s.id);
+        list.append(el('label', { class: 'page sel-row' + (on ? ' active' : '') },
+          el('input', { type: 'checkbox', checked: on, onchange: e => { e.target.checked ? this.sel.add(s.id) : this.sel.delete(s.id); this.renderBulk(); e.target.closest('.page').classList.toggle('active', e.target.checked); } }),
+          el('span', {}, el('div', { class: 'page-title', text: s.title || 'Sem título' }), el('div', { class: 'page-sub', text: s.date ? new Date(s.date + 'T12:00').toLocaleDateString('pt-BR') : '' }))));
+        continue;
+      }
       list.append(el('div', { class: 'page' + (this.cur?.id === s.id ? ' active' : ''), 'data-id': s.id, onclick: () => this.open(s.id) },
         el('div', { class: 'page-title', text: s.title || 'Sem título' }),
         el('div', { class: 'page-sub', text: [s.date ? new Date(s.date + 'T12:00').toLocaleDateString('pt-BR') : '', preview].filter(Boolean).join(' · ') })));
     }
+  },
+  _bulk: null,
+  renderBulk() {
+    const bar = $('#page-bulk'); bar.hidden = !this.selMode; $('#page-select').classList.toggle('on', !!this.selMode); $('#page-select').textContent = this.selMode ? '✕ Cancelar' : '☑ Selecionar';
+    if (!this.selMode) return;
+    const n = this.sel.size; bar.innerHTML = '';
+    const opts = this.meta.sections.map(x => { const nb = this.meta.notebooks.find(b => b.id === x.nb); return el('option', { value: x.id, text: `${nb?.name || ''} › ${x.name}` }); });
+    const dest = el('select', { class: 'inp' }, el('option', { value: '', text: 'Mover para…' }), opts, el('option', { value: '__new', text: '+ Nova seção…' }));
+    dest.onchange = async () => {
+      if (!n) { UI.toast('Marque as páginas primeiro'); dest.value = ''; return; }
+      let secId = dest.value; if (!secId) return;
+      if (secId === '__new') { const nm = await UI.ask('Nome da nova seção', ''); if (!nm) { dest.value = ''; return; } const sc = { id: uid(), nb: this.meta.currentNb, name: nm, color: SECTION_COLORS[this.meta.sections.length % 10] }; this.meta.sections.push(sc); secId = sc.id; }
+      for (const id of this.sel) { const s = this.sermons.get(id); if (s) { s.sec = secId; this.touch(s); } }
+      UI.toast(`${n} página(s) movida(s)`); this.sel = new Set(); this.saveMeta(); this.flush(); this.renderNav();
+    };
+    const all = el('button', { class: 'btn sm', text: 'Todas', onclick: () => { [...$$('#page-list .sel-row input')].forEach(c => { c.checked = true; c.dispatchEvent(new Event('change')); }); } });
+    const del = el('button', { class: 'btn sm danger-text', text: 'Excluir', onclick: async () => {
+      if (!n || !await UI.confirm('Excluir páginas', `Excluir ${n} ministração(ões)?`)) return;
+      for (const id of this.sel) { this.sermons.delete(id); DB.del('sermons', id); Cloud.tomb(id); }
+      if (this.cur && !this.sermons.has(this.cur.id)) { this.cur = null; this.renderEditor(); }
+      this.sel = new Set(); this.renderNav();
+    } });
+    bar.append(el('span', { class: 'small', text: `${n} selecionada(s)` }), all, dest, del);
   },
   newSermon(data = {}) {
     if (!this.meta.currentSec) { UI.toast('Crie uma seção primeiro'); return; }
@@ -2276,7 +2322,9 @@ const Porter = {
         el('button', { class: 'btn primary', text: 'Conectar ao OneNote…', onclick: () => { m.close(); OneNoteUI.open(); } })),
       el('div', { class: 'imp-card' }, el('h4', { text: '1. Arquivo exportado do OneNote' }),
         el('p', { class: 'muted', html: 'Sem login e sem registro. No OneNote: <b>Arquivo › Exportar</b> › escolha <b>Página</b> ou <b>Seção</b> (uma seção inteira vira várias ministrações, uma por página) › formato <b>Documento do Word (*.docx)</b> ou <b>Arquivo da Web de Arquivo Único (*.mht)</b>. Depois selecione os arquivos abaixo — pode escolher vários de uma vez.' }),
-        el('button', { class: 'btn primary', text: 'Escolher arquivos .docx / .mht / .html…', onclick: async () => { const fs = await pickFiles('.docx,.mht,.mhtml,.html,.htm', true); if (fs.length) { m.close(); this.importFiles(fs); } } })),
+        el('div', { class: 'row-btns' },
+          el('button', { class: 'btn primary', text: 'Escolher arquivos .docx / .mht / .html…', onclick: async () => { const fs = await pickFiles('.docx,.mht,.mhtml,.html,.htm', true); if (fs.length) { m.close(); this.importFiles(fs); } } }),
+          el('button', { class: 'btn', text: 'Importar caderno (várias seções)…', onclick: () => { m.close(); this.notebookImport(); } }))),
       el('div', { class: 'imp-card' }, el('h4', { text: '2. Copiar e colar' }), paste,
         el('button', { class: 'btn', text: 'Importar o conteúdo colado', onclick: () => { const items = htmlToItems(paste.innerHTML); if (!items.length) return UI.toast('Cole algo primeiro'); const r = itemsToSermon(items, 'Colado do OneNote'); App.newSermon({ title: r.title, blocks: r.blocks }); m.close(); } })),
       el('div', { class: 'imp-card' }, el('h4', { text: '3. Backup do SmartSermon' }), el('p', { class: 'muted', text: 'Restaura um arquivo .json exportado por este app (mescla com o que já existe).' }),
@@ -2284,48 +2332,91 @@ const Porter = {
     paste.addEventListener('paste', e => { const h = e.clipboardData.getData('text/html'); if (h) { e.preventDefault(); paste.innerHTML = sanitizeHTML(h); } });
     const m = UI.modal({ title: 'Importar', body, wide: true });
   },
-  async importFiles(files) {
-    let ok = 0, last = null; const homeSec = App.meta.currentSec, homeNb = App.meta.currentNb;
+  async parseFile(f) {
+    const ext = f.name.split('.').pop().toLowerCase(); let items = [];
+    if (ext === 'docx') { items = await docxToItems(await f.arrayBuffer()); return { pages: splitOneNotePages(items), items }; }
+    if (ext === 'mht' || ext === 'mhtml') return { pages: mhtToPages(await f.text()), items };
+    const h = await f.text(); const pages = oneNoteExportPages(h, {}) || splitOneNotePages(items = htmlToItems(h));
+    return { pages, items };
+  },
+  /* Lê os arquivos e pergunta como organizar (caderno novo/atual, uma seção por arquivo, por ano…) */
+  async importFiles(files, opts = {}) {
+    const parsed = [];
+    UI.toast(files.length > 1 ? `Lendo ${files.length} arquivos…` : `Lendo ${files[0].name}…`);
+    await new Promise(r => setTimeout(r, 30));
     for (const f of files) {
-      try {
-        const ext = f.name.split('.').pop().toLowerCase(); let items = [], pages;
-        UI.toast(`Lendo ${f.name}…`);
-        await new Promise(r => setTimeout(r, 30));
-        if (ext === 'docx') { items = await docxToItems(await f.arrayBuffer()); pages = splitOneNotePages(items); }
-        else if (ext === 'mht' || ext === 'mhtml') pages = mhtToPages(await f.text());
-        else { const h = await f.text(); pages = oneNoteExportPages(h, {}) || splitOneNotePages(items = htmlToItems(h)); }
-        const base = f.name.replace(/\.[^.]+$/, '');
-        if (pages.length > 1) { // seção inteira: cria uma seção com o nome do arquivo
-          // Muitas páginas: uma seção por ano (o export do caderno inteiro não informa as seções do OneNote)
-          const byYear = pages.length > 60;
-          let nbId = homeNb;
-          if (byYear) { // caderno novo com o nome do arquivo e uma seção por ano (mais recente primeiro)
-            const nb = { id: uid(), name: base, color: SECTION_COLORS[App.meta.notebooks.length % 10] }; App.meta.notebooks.push(nb); nbId = nb.id; App.meta.currentNb = nb.id;
-          }
-          const secs = {};
-          const keyOf = pg => byYear ? ((pg.date || '').slice(0, 4) || 'Sem data') : '';
-          [...new Set(pages.map(keyOf))].sort((a, b) => (a === 'Sem data') - (b === 'Sem data') || b.localeCompare(a)).forEach(key => {
-            const sc = { id: uid(), nb: nbId, name: byYear ? key : base, color: SECTION_COLORS[App.meta.sections.length % 10] }; App.meta.sections.push(sc); secs[key] = sc;
-          });
-          const secFor = pg => secs[keyOf(pg)];
-          for (const pg of pages) {
-            const sec = secFor(pg); App.meta.currentSec = sec.id;
-            const r = itemsToSermon(pg.items, pg.title || 'Sem título', !!pg.title);
-            const s = Object.assign(blankSermon(sec.id), { title: r.title, blocks: r.blocks, duration: 0 });
-            s.date = pg.date || '';
-            App.sermons.set(s.id, s); App.touch(s); last = s; ok++;
-          }
-        } else {
-          const pg = pages[0] || { items };
-          const r = itemsToSermon(pg.items, pg.title || base, !!pg.title);
-          const s = Object.assign(blankSermon(homeSec), { title: r.title, blocks: r.blocks });
-          if (pg.date) s.date = pg.date;
-          App.sermons.set(s.id, s); App.touch(s); last = s; ok++;
-        }
-      } catch (e) { console.error(e); UI.toast(`Falha em ${f.name}: ${e.message}`); }
+      try { const { pages, items } = await this.parseFile(f); parsed.push({ base: f.name.replace(/\.[^.]+$/, ''), pages: pages.length ? pages : [{ title: null, date: null, items }] }); }
+      catch (e) { console.error(e); UI.toast(`Falha em ${f.name}: ${e.message}`); }
     }
-    App.flush(); App.renderNav(); if (last) App.open(last.id);
+    parsed.sort((a, b) => a.base.localeCompare(b.base, 'pt-BR', { numeric: true }));
+    const total = parsed.reduce((n, x) => n + x.pages.length, 0);
+    if (!total) return;
+    // Uma página só: entra direto na seção aberta (o jeito mais rápido)
+    // Só páginas soltas (1 por arquivo): entram direto na seção aberta, sem perguntas
+    if (!opts.asNotebook && parsed.every(x => x.pages.length === 1)) return this.applyImport(parsed, { dest: 'here' });
+    this.organize(parsed, opts);
+  },
+  organize(parsed, opts) {
+    const total = parsed.reduce((n, x) => n + x.pages.length, 0), multi = parsed.length > 1;
+    const common = (() => { if (!multi) return parsed[0].base; let p = parsed[0].base; for (const x of parsed) while (p && !x.base.startsWith(p)) p = p.slice(0, -1); return p.replace(/[\s\-_–—·.]+$/, '').trim(); })();
+    const name = el('input', { class: 'inp', value: common || 'Caderno importado' });
+    const curNb = App.meta.notebooks.find(n => n.id === App.meta.currentNb);
+    const destNew = el('input', { type: 'radio', name: 'imp-dest', checked: true }), destCur = el('input', { type: 'radio', name: 'imp-dest' });
+    const group = el('select', { class: 'inp' },
+      el('option', { value: 'one', text: 'Tudo numa seção' }), el('option', { value: 'year', text: 'Uma seção por ano' }));
+    group.value = total > 60 ? 'year' : 'one';
+    const body = el('div', { class: 'imp' },
+      el('p', { html: `<b>${total}</b> página(s) em <b>${parsed.length}</b> arquivo(s).` }),
+      el('div', { class: 'imp-card' },
+        el('label', { class: 'on-check' }, destNew, ' Criar um caderno novo chamado:'), name,
+        el('label', { class: 'on-check', style: { marginTop: '8px' } }, destCur, ` Colocar no caderno aberto (${curNb?.name || ''})`)),
+      multi
+        ? el('div', { class: 'imp-card' }, el('b', { text: 'Seções' }), el('p', { class: 'muted small', text: 'Cada arquivo vira uma seção:' }),
+            el('div', { class: 'imp-secs' }, parsed.map(x => el('span', { class: 'pill', text: `${x.base} · ${x.pages.length}` }))))
+        : el('div', { class: 'imp-card' }, el('b', { text: 'Seções' }), group,
+            total > 1 ? el('p', { class: 'muted small', html: 'O OneNote <b>não grava as seções</b> quando você exporta o caderno inteiro. Para manter as seções originais, exporte <b>cada seção</b> (Arquivo › Exportar › <b>Seção</b> › .mht) e selecione todos os arquivos juntos. Ou importe assim e use <b>☑ Selecionar</b> na lista de páginas para mover várias de uma vez.' }) : null));
+    const m = UI.modal({ title: opts.asNotebook ? 'Importar caderno' : 'Importar', body, wide: true, actions: [
+      { label: 'Cancelar' },
+      { label: 'Importar', primary: true, onClick: () => { this.applyImport(parsed, { dest: destCur.checked ? 'current' : 'new', name: name.value.trim() || common || 'Caderno importado', group: group.value }); } }] });
+  },
+  applyImport(parsed, o) {
+    const M = App.meta; let ok = 0, last = null;
+    const newSec = (nb, nm) => { const sc = { id: uid(), nb, name: nm, color: SECTION_COLORS[M.sections.length % 10] }; M.sections.push(sc); return sc; };
+    const add = (pg, secId, fallback) => {
+      const r = itemsToSermon(pg.items, pg.title || fallback || 'Sem título', !!pg.title);
+      const s = Object.assign(blankSermon(secId), { title: r.title, blocks: r.blocks, duration: 0 });
+      s.date = pg.date || (o.dest === 'here' ? s.date : '');
+      App.sermons.set(s.id, s); App.touch(s); last = s; ok++;
+    };
+    if (o.dest === 'here') { for (const x of parsed) add(x.pages[0], M.currentSec, x.base); }
+    else {
+      let nbId = M.currentNb;
+      if (o.dest === 'new') { const nb = { id: uid(), name: o.name, color: SECTION_COLORS[M.notebooks.length % 10] }; M.notebooks.push(nb); nbId = nb.id; }
+      let firstSec = null;
+      if (parsed.length > 1) {
+        for (const x of parsed) { const sc = newSec(nbId, x.base); firstSec ||= sc; x.pages.forEach(pg => add(pg, sc.id, x.base)); }
+      } else {
+        const x = parsed[0];
+        if (o.group === 'year') {
+          const keyOf = pg => (pg.date || '').slice(0, 4) || 'Sem data'; const secs = {};
+          [...new Set(x.pages.map(keyOf))].sort((a, b) => (a === 'Sem data') - (b === 'Sem data') || b.localeCompare(a)).forEach(k => { secs[k] = newSec(nbId, k); firstSec ||= secs[k]; });
+          x.pages.forEach(pg => add(pg, secs[keyOf(pg)].id, x.base));
+        } else {
+          const sc = newSec(nbId, o.dest === 'new' ? 'Geral' : x.base); firstSec = sc; x.pages.forEach(pg => add(pg, sc.id, x.base));
+        }
+      }
+      M.currentNb = nbId; if (firstSec) M.currentSec = firstSec.id;
+    }
+    App.saveMeta(); App.flush(); App.renderNav();
+    const open = App.sectionSermons(M.currentSec)[0] || last; if (open) App.open(open.id);
     if (ok) UI.toast(`${ok} página(s) importada(s). Revise os pontos e versículos.`);
+  },
+  async notebookImport() {
+    UI.modal({ title: 'Importar caderno do OneNote', body: el('div', {},
+      el('p', { html: 'Para manter as <b>seções</b>, exporte cada seção do caderno no OneNote:' }),
+      el('ol', { class: 'steps', html: '<li>No OneNote, clique na seção (a aba colorida).</li><li><b>Arquivo › Exportar</b> › Exportar atual: <b>Seção</b> › formato <b>Página da Web de Arquivo Único (*.mht)</b> ou <b>Documento do Word</b> › Exportar.</li><li>Repita para cada seção, salvando todas na mesma pasta.</li><li>Clique abaixo e selecione <b>todos os arquivos</b> de uma vez (Ctrl+A na pasta).</li>' }),
+      el('p', { class: 'muted small', text: 'Cada arquivo vira uma seção, com o nome do arquivo, dentro de um caderno novo. Também funciona com o caderno inteiro em um arquivo só, mas aí o OneNote não informa as seções.' })),
+      actions: [{ label: 'Cancelar' }, { label: 'Escolher arquivos…', primary: true, onClick: async () => { const fs = await pickFiles('.docx,.mht,.mhtml,.html,.htm', true); if (fs.length) this.importFiles(fs, { asNotebook: true }); } }] });
   },
   exportDialog() {
     const s = App.cur;

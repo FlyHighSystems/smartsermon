@@ -279,3 +279,10 @@ a.ref{color:var(--rverse);text-decoration:underline dotted;text-underline-offset
 .cloud-btn[data-state=syncing]{opacity:.85}
 .cloud-btn[data-state=setup],.cloud-btn[data-state=out]{background:#fff;color:var(--accent);font-weight:600}
 @media (max-width:1100px){.cloud-btn{font-size:0}.cloud-btn:before{content:"☁";font-size:16px}}
+
+/* Seleção de várias páginas */
+.page-tools{display:flex;justify-content:flex-end;margin:-4px 4px 0}.page-tools .btn.on{color:#c50f1f}
+.page-bulk{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:6px 8px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--panel2)}
+.page-bulk select{flex:1;min-width:120px;min-height:30px;padding:4px}
+.sel-row{display:flex;gap:10px;align-items:center}.sel-row input{width:18px;height:18px}
+.imp-secs{display:flex;flex-wrap:wrap;gap:6px}
