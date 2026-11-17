@@ -326,3 +326,16 @@ a.ref{color:var(--rverse);text-decoration:underline dotted;text-underline-offset
 .rp-post{border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:6px 0;display:flex;gap:10px;align-items:flex-start}.rp-post p{flex:1;margin:0;white-space:pre-wrap}
 #r-mic.rec{background:#e5484d;border-color:#e5484d;color:#fff;animation:blink 1.5s infinite}
 .r-live{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);max-width:80vw;background:rgba(0,0,0,.55);color:#fff;font-size:15px;padding:6px 12px;border-radius:8px;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Mover/copiar */
+.page-tools{margin:0 8px 6px;justify-content:stretch}.page-tools .btn{width:100%}
+.page-bulk .btn{min-height:30px}
+.seg-toggle{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:8px}
+.seg-toggle button{border:0;background:transparent;padding:6px 16px;min-height:34px}.seg-toggle button.on{background:var(--accent);color:#fff}
+.sp-list{display:flex;flex-direction:column;gap:3px;max-height:55vh;overflow:auto}
+.sp-nb{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:10px 0 2px}
+.sp-sec{display:flex;align-items:center;gap:10px;text-align:left;border:1px solid var(--line);background:var(--input);border-radius:8px;padding:8px 12px;min-height:40px}
+.sp-sec span:nth-child(2){flex:1}.sp-sec:hover{border-color:var(--accent)}.sp-sec.cur{opacity:.6}
+.sp-new{margin-top:2px;font-size:14px}
+.sec.drop{outline:2px dashed var(--accent);background:var(--accent-l)}
+body.dragging #sec-list .sec{transition:background .15s}
