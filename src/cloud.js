@@ -54,6 +54,11 @@ const Cloud = {
     return 'confirm';
   },
   async magicLink(email) { await this.auth(`otp?redirect_to=${encodeURIComponent(this.redirect())}`, { email, create_user: true }); },
+  async providers() {
+    if (this._prov) return this._prov;
+    try { const c = this.cfg(); const r = await fetch(`${c.url}/auth/v1/settings`, { headers: { apikey: c.key } }); const j = await r.json(); this._prov = j.external || {}; } catch (e) { this._prov = {}; }
+    return this._prov;
+  },
   google() { const c = this.cfg(); location.href = `${c.url}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(this.redirect())}`; },
   async signOut() {
     try { const c = this.cfg(); await fetch(`${c.url}/auth/v1/logout`, { method: 'POST', headers: { apikey: c.key, Authorization: 'Bearer ' + this.session?.access_token } }); } catch (e) { }
@@ -312,6 +317,9 @@ const CloudUI = {
     const email = el('input', { class: 'inp', type: 'email', placeholder: 'seu e-mail', autocomplete: 'email' });
     const pass = el('input', { class: 'inp', type: 'password', placeholder: 'senha (mínimo 6 caracteres)', autocomplete: 'current-password' });
     const out = el('p', { class: 'small', text: msg || '' });
+    // Só mostra "Entrar com Google" se o provedor estiver ativado no Supabase
+    const gbtn = el('button', { class: 'btn', text: 'Entrar com Google', hidden: true, onclick: () => Cloud.google() });
+    Cloud.providers().then(p => { if (p.google) gbtn.hidden = false; });
     const run = async (fn) => { out.textContent = 'Aguarde…'; try { const r = await fn(); if (r !== false) { if (Cloud.session) { out.textContent = ''; this.viewAccount(); Cloud.schedule(100); } } } catch (e) { out.textContent = e.message; } };
     this.set(
       el('p', { text: 'Entre com a mesma conta em todos os seus aparelhos (Surface, notebook…). As ministrações deste aparelho são enviadas e juntadas às da nuvem.' }),
@@ -320,7 +328,7 @@ const CloudUI = {
         el('button', { class: 'btn primary', text: 'Entrar', onclick: () => run(() => Cloud.signIn(email.value.trim(), pass.value)) }),
         el('button', { class: 'btn', text: 'Criar conta', onclick: () => run(async () => { const r = await Cloud.signUp(email.value.trim(), pass.value); if (r === 'confirm') { out.textContent = 'Conta criada! Abra o e-mail de confirmação do Supabase e depois clique em “Entrar”.'; return false; } }) }),
         el('button', { class: 'btn', text: 'Receber link por e-mail', onclick: () => run(async () => { await Cloud.magicLink(email.value.trim()); out.textContent = 'Enviamos um link para o seu e-mail. Abra-o neste aparelho para entrar.'; return false; }) }),
-        el('button', { class: 'btn', text: 'Entrar com Google', onclick: () => Cloud.google() })),
+        gbtn),
       out,
       el('p', { class: 'small' }, el('button', { class: 'btn link', text: 'Configurar projeto Supabase', onclick: () => this.viewSetup() })));
     setTimeout(() => email.focus(), 50);
