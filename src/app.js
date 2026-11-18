@@ -146,7 +146,7 @@ const App = {
     $('#sec-add').onclick = async () => { const n = await UI.ask('Nova seção (série, tema, evento…)', ''); if (!n) return; const sec = { id: uid(), nb: this.meta.currentNb, name: n, color: SECTION_COLORS[this.meta.sections.length % 10] }; this.meta.sections.push(sec); this.meta.currentSec = sec.id; this.saveMeta(); this.renderNav(); };
     $('#page-add').onclick = () => this.newSermon();
     $('#page-import').onclick = () => Porter.importDialog();
-    $('#page-search').oninput = () => this.renderPages();
+    Search.init();
     $('#page-select').onclick = () => { this.selMode = !this.selMode; this.sel = new Set(); this.renderPages(); };
     $('#toggle-nav').onclick = () => document.body.classList.toggle('nav-collapsed');
     EditorView.init();
@@ -235,9 +235,10 @@ const App = {
       } }] });
   },
   renderPages() {
-    const q = stripAccents(($('#page-search').value || '').toLowerCase().trim());
-    let items = q ? [...this.sermons.values()].filter(s => stripAccents((s.title + ' ' + s.passage + ' ' + s.blocks.map(b => (b.ref || '') + ' ' + htmlToText(b.html) + ' ' + (b.alt || '')).join(' ')).toLowerCase()).includes(q))
-      : this.sectionSermons(this.meta.currentSec);
+    const q = ($('#page-search').value || '').trim();
+    Search.renderScope(q);
+    if (q && !this.selMode) return Search.renderResults(q);
+    let items = this.sectionSermons(this.meta.currentSec);
     const list = $('#page-list'); list.innerHTML = '';
     this.sel ||= new Set(); this.renderBulk();
     if (!items.length) list.append(el('p', { class: 'muted pad', text: q ? 'Nada encontrado.' : 'Nenhuma ministração nesta seção.' }));
@@ -782,5 +783,107 @@ const EditorView = {
       const inner = $('#editor-inner'); inner && inner.style.setProperty('--ez', ez); this.val.textContent = Math.round(ez * 100) + '%'; pinch.cur = ez;
     }, { passive: false });
     ed.addEventListener('touchend', e => { if (pinch && e.touches.length < 2) { if (pinch.cur) this.set({ ez: pinch.cur }); pinch = null; } });
+  }
+};
+
+/* ===== Pesquisa nas ministrações: seção / caderno / tudo, com trecho e destaque no editor ===== */
+const Search = {
+  cache: new Map(),
+  scope() { try { return localStorage.getItem('ss-search-scope') || 'sec'; } catch (e) { return 'sec'; } },
+  setScope(v) { try { localStorage.setItem('ss-search-scope', v); } catch (e) { } App.renderPages(); },
+  /* normaliza letra por letra (mesmo comprimento) para o trecho apontar o lugar certo do texto original */
+  norm(t) { let o = ''; for (const ch of t) { const n = ch.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); o += n.length === ch.length ? n : ch; } return o; },
+  terms(q) { const out = []; q.replace(/"([^"]+)"|(\S+)/g, (_, a, b) => { const t = this.norm((a || b).trim()); if (t) out.push(t); }); return out; },
+  doc(s) {
+    const c = this.cache.get(s.id); if (c && c.u === s.updated) return c;
+    const raw = s.blocks.map(b => [b.ref, htmlToText(b.html || ''), b.alt, b.caption].filter(Boolean).join(' ')).join('\n').replace(/[ \t]+/g, ' ');
+    const d = { u: s.updated, title: s.title || '', nt: this.norm((s.title || '') + ' ' + (s.passage || '')), raw, nr: this.norm(raw) };
+    this.cache.set(s.id, d); return d;
+  },
+  pool() {
+    const sc = this.scope(), m = App.meta;
+    if (sc === 'all') return [...App.sermons.values()];
+    if (sc === 'nb') { const secs = new Set(m.sections.filter(x => x.nb === this.baseNb).map(x => x.id)); return [...App.sermons.values()].filter(s => secs.has(s.sec)); }
+    return App.sectionSermons(this.baseSec);
+  },
+  count(hay, t) { let n = 0, i = 0; while ((i = hay.indexOf(t, i)) >= 0) { n++; i += t.length; } return n; },
+  run(q) {
+    const ts = this.terms(q); if (!ts.length) return [];
+    const res = [];
+    for (const s of this.pool()) {
+      const d = this.doc(s); let score = 0, hits = 0, ok = true;
+      for (const t of ts) { const inT = this.count(d.nt, t), inB = this.count(d.nr, t); if (!inT && !inB) { ok = false; break; } score += inT * 10 + inB; hits += inT + inB; }
+      if (ok) res.push({ s, d, score, hits, ts });
+    }
+    return res.sort((a, b) => b.score - a.score || (b.s.date || '').localeCompare(a.s.date || ''));
+  },
+  snippet(d, ts) {
+    let at = -1, len = 0; for (const t of ts) { const i = d.nr.indexOf(t); if (i >= 0 && (at < 0 || i < at)) { at = i; len = t.length; } }
+    const frag = el('div', { class: 'page-sub sr-snip' });
+    if (at < 0) { frag.textContent = d.raw.slice(0, 90); return frag; }
+    const a = Math.max(0, at - 40), b = Math.min(d.raw.length, at + len + 70);
+    let piece = d.raw.slice(a, b).replace(/\n/g, ' · '), np = d.nr.slice(a, b);
+    const marks = []; for (const t of ts) { let i = 0; while ((i = np.indexOf(t, i)) >= 0) { marks.push([i, i + t.length]); i += t.length; } }
+    marks.sort((x, y) => x[0] - y[0]); let pos = 0;
+    if (a > 0) frag.append('…');
+    for (const [x, y] of marks) { if (x < pos) continue; frag.append(piece.slice(pos, x), el('mark', { text: piece.slice(x, y) })); pos = y; }
+    frag.append(piece.slice(pos)); if (b < d.raw.length) frag.append('…');
+    return frag;
+  },
+  where(s) { const sec = App.meta.sections.find(x => x.id === s.sec); const nb = sec && App.meta.notebooks.find(n => n.id === sec.nb); return [nb?.name, sec?.name].filter(Boolean).join(' › '); },
+  renderScope(q) {
+    let bar = $('#search-scope');
+    if (!q) { bar && (bar.hidden = true); return; }
+    if (!bar) { bar = el('div', { id: 'search-scope', class: 'search-scope' }); $('#page-search').after(bar); }
+    bar.hidden = false; bar.innerHTML = '';
+    const sc = this.scope(); const secName = App.meta.sections.find(x => x.id === this.baseSec)?.name || 'Seção';
+    const nbName = App.meta.notebooks.find(n => n.id === this.baseNb)?.name || 'Caderno';
+    for (const [v, label, tip] of [['sec', secName, 'Só nesta seção'], ['nb', nbName, 'No caderno inteiro'], ['all', 'Tudo', 'Em todos os cadernos']])
+      bar.append(el('button', { class: 'chip sc' + (sc === v ? ' on' : ''), title: tip, text: label, onclick: () => this.setScope(v) }));
+  },
+  renderResults(q) {
+    const list = $('#page-list'); list.innerHTML = '';
+    const res = this.run(q); const total = res.reduce((n, r) => n + r.hits, 0);
+    list.append(el('p', { class: 'muted small pad sr-sum', text: res.length ? `${res.length} página${res.length > 1 ? 's' : ''} · ${total} ocorrência${total > 1 ? 's' : ''}` : 'Nada encontrado' + (this.scope() !== 'all' ? ' aqui — tente “Tudo”.' : '.') }));
+    const sc = this.scope();
+    for (const r of res.slice(0, 300)) {
+      list.append(el('div', { class: 'page sr' + (App.cur?.id === r.s.id ? ' active' : ''), 'data-id': r.s.id, onclick: () => { App.open(r.s.id); this.highlight(); } },
+        el('div', { class: 'pg-main' },
+          el('div', { class: 'page-title' }, r.s.title || 'Sem título', el('span', { class: 'sr-n', text: r.hits })),
+          sc !== 'sec' ? el('div', { class: 'page-sub sr-where', text: this.where(r.s) }) : null,
+          this.snippet(r.d, r.ts))));
+    }
+    if (res.length > 300) list.append(el('p', { class: 'muted small pad', text: `Mostrando 300 de ${res.length}. Refine a busca.` }));
+  },
+  /* marca as ocorrências no editor (sem mexer no texto) e rola até a primeira */
+  highlight() {
+    if (!window.CSS?.highlights) return;
+    CSS.highlights.delete('ss-find');
+    const q = ($('#page-search')?.value || '').trim(); const ts = q ? this.terms(q) : []; if (!ts.length) return;
+    const ranges = []; const w = document.createTreeWalker($('#editor-inner'), NodeFilter.SHOW_TEXT);
+    for (let n; (n = w.nextNode());) {
+      const h = this.norm(n.data);
+      for (const t of ts) { let i = 0; while ((i = h.indexOf(t, i)) >= 0) { const r = new Range(); r.setStart(n, i); r.setEnd(n, i + t.length); ranges.push(r); i += t.length; } }
+    }
+    if (!ranges.length) return;
+    CSS.highlights.set('ss-find', new Highlight(...ranges));
+    ranges.sort((a, b) => a.compareBoundaryPoints(Range.START_TO_START, b));
+    const r0 = ranges[0].getBoundingClientRect(), ed = $('#editor'), er = ed.getBoundingClientRect();
+    ed.scrollTo({ top: ed.scrollTop + r0.top - er.top - er.height / 3, behavior: 'smooth' });
+  },
+  init() {
+    const inp = $('#page-search'); inp.placeholder = 'Pesquisar…  (Ctrl+Shift+F)';
+    let t; inp.oninput = () => {
+      if (inp.value.trim() && !this.active) { this.baseSec = App.meta.currentSec; this.baseNb = App.meta.currentNb; }
+      this.active = !!inp.value.trim();
+      clearTimeout(t); t = setTimeout(() => { App.renderPages(); this.highlight(); }, 150);
+    };
+    inp.onkeydown = e => {
+      if (e.key === 'Escape') { inp.value = ''; inp.oninput(); inp.blur(); }
+      if (e.key === 'Enter') { const first = $('#page-list .page.sr'); first && first.click(); }
+    };
+    document.addEventListener('keydown', e => {
+      if (e.ctrlKey && e.shiftKey && (e.key === 'F' || e.key === 'f')) { e.preventDefault(); document.body.classList.remove('nav-collapsed'); inp.focus(); inp.select(); }
+    });
   }
 };
