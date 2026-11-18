@@ -464,6 +464,7 @@ a.btn{text-decoration:none;display:inline-flex;align-items:center;color:inherit}
 .page-tools{gap:6px}
 .sl-ai{display:flex;flex-direction:column;gap:6px;padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:4px}
 .sl-ai textarea{font-family:inherit;font-size:13px;line-height:1.4;resize:vertical}
+.ai-sec{margin:16px 0 2px;font-size:14px}
 </style>
 </head>
 <body>
@@ -3834,6 +3835,7 @@ const AI = {
       el('button', { class: 'btn sm', type: 'button', title: 'Apagar e colar uma nova', text: 'Trocar', onclick: () => { inp.value = ''; inp.type = 'text'; inp.focus(); } }));
     ak.style.flex = gk.style.flex = '1';
     const cm = el('input', { class: 'inp', value: c.claudeModel }), gm = el('input', { class: 'inp', value: c.geminiModel }), im = el('input', { class: 'inp', value: c.imageModel, placeholder: 'automático (Nano Banana 2 → Nano Banana)' }), hk = el('input', { class: 'inp', type: 'password', value: c.hordeKey, placeholder: 'opcional — sem chave usa a anônima (fila mais lenta)', autocomplete: 'off' }), pk = el('input', { class: 'inp', type: 'password', value: c.pollKey, placeholder: 'opcional — pk_… (sem chave: ~1 imagem a cada 15 s)', autocomplete: 'off' });
+    pk.style.flex = hk.style.flex = '1';
     const ch = el('textarea', { class: 'inp', rows: 2 }); ch.value = c.church;
     const sk = el('input', { type: 'checkbox', checked: c.syncKeys });
     const out = el('p', { class: 'small' });
@@ -3842,12 +3844,13 @@ const AI = {
       el('p', { class: 'muted', html: 'As chamadas vão direto daqui para a Anthropic e o Google. Cada análise custa centavos (cobrança na sua conta de cada serviço). Você pode usar só uma das duas.' }),
       el('label', { class: 'lbl', text: 'Chave da API do Claude (console.anthropic.com › API Keys)' }), keyRow(ak),
       el('label', { class: 'lbl', text: 'Chave da API do Gemini (aistudio.google.com › Get API key)' }), keyRow(gk),
+      el('h4', { class: 'ai-sec', text: '🖼 Imagens do telão (opcionais — melhoram a fila e os limites)' }),
+      el('label', { class: 'lbl', text: 'Chave do Pollinations (grátis em enter.pollinations.ai — use a publicável pk_…)' }), keyRow(pk),
+      el('label', { class: 'lbl', text: 'Chave do AI Horde (grátis em aihorde.net/register — dá prioridade na fila)' }), keyRow(hk),
       el('details', {}, el('summary', { text: 'Modelos e contexto' }),
         el('label', { class: 'lbl', text: 'Modelo do Claude' }), cm,
         el('label', { class: 'lbl', text: 'Modelo do Gemini' }), gm,
-        el('label', { class: 'lbl', text: 'Modelo de imagem (fundos do telão)' }), im,
-        el('label', { class: 'lbl', text: 'Chave do AI Horde (grátis em aihorde.net/register — dá prioridade na fila)' }), hk,
-        el('label', { class: 'lbl', text: 'Chave do Pollinations (grátis em enter.pollinations.ai — use a publicável pk_…)' }), pk,
+        el('label', { class: 'lbl', text: 'Modelo de imagem do Gemini (fundos do telão)' }), im,
         el('label', { class: 'lbl', text: 'Contexto da sua igreja (ajuda a IA a calibrar a revisão)' }), ch),
       el('label', { class: 'lbl', style: { display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 'normal' } }, sk,
         el('span', { html: 'Guardar as chaves na minha conta e usar em <b>todos os meus aparelhos</b> (precisa estar logado na nuvem). Desmarcado: ficam só neste aparelho.' })),

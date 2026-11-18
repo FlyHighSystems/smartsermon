@@ -453,3 +453,4 @@ a.btn{text-decoration:none;display:inline-flex;align-items:center;color:inherit}
 .page-tools{gap:6px}
 .sl-ai{display:flex;flex-direction:column;gap:6px;padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:4px}
 .sl-ai textarea{font-family:inherit;font-size:13px;line-height:1.4;resize:vertical}
+.ai-sec{margin:16px 0 2px;font-size:14px}
