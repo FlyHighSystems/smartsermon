@@ -246,7 +246,7 @@ Notas de 0 a 10.`;
   async run(s, providers, onStep) {
     const text = AI.sermonText(s); const kind = reviewKind(s); const K = REVIEW_KINDS.find(k => k[0] === kind);
     let ctx = '';
-    if (Book.is(s)) { const nb = Book.nbOf(s.sec); ctx = `LIVRO: "${nb.name}"${Book.info(nb).subtitle ? ' — ' + Book.info(nb).subtitle : ''}. Este é o capítulo ${Book.numOf(s) || '?'}.\nMapa do livro (títulos e resumos dos capítulos):\n` + Book.chapters(nb).filter(c => c.top).map(c => `${c.num}. ${c.s.title}${Book.meta(c.s).synopsis ? ' — ' + Book.meta(c.s).synopsis : ''}`).join('\n') + '\n\n'; }
+    if (Book.is(s)) { const nb = Book.nbOf(s.sec); ctx = `LIVRO: "${nb.name}"${Book.info(nb).subtitle ? ' — ' + Book.info(nb).subtitle : ''}. Esta página é: ${Book.numOf(s) ? 'capítulo ' + Book.numOf(s) : Book.kindLabel(s)}.\nMapa do livro (títulos e resumos):\n` + Book.chapters(nb).filter(c => c.top && !c.plan).map(c => `${c.num ? c.num + '.' : '•'} ${c.s.title}${Book.meta(c.s).synopsis ? ' — ' + Book.meta(c.s).synopsis : ''}`).join('\n') + '\n\n'; }
     const user = `${ctx}Revise este texto (gênero: ${K[1]}):\n\n${text}`;
     const tasks = providers.map(async p => {
       onStep && onStep(p, 'run');

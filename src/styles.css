@@ -533,3 +533,8 @@ sup.fn{color:var(--accent);font-weight:700;cursor:pointer;padding:0 1px;user-sel
 .pane-grip::after{content:'';position:absolute;left:3px;top:0;bottom:0;width:2px;background:transparent;transition:background .15s}
 .pane-grip:hover::after,.pane-grip.on::after{background:var(--accent)}
 body.resizing{cursor:col-resize;user-select:none}body.resizing iframe{pointer-events:none}
+
+.bk-kinds{min-width:330px}.bk-ki{width:24px;text-align:center;font-size:17px}
+.bk-kt{font-size:11px;font-weight:600;color:#8e562e;border:1px solid currentColor;border-radius:999px;padding:0 7px;margin-left:6px}
+.bk-card.plan{border-style:dashed;border-left-style:solid;background:color-mix(in srgb,#8e562e 6%,var(--panel))}
+.chip.primary-chip{background:#8e562e;border-color:#8e562e;color:#fff}

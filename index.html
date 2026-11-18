@@ -544,6 +544,11 @@ sup.fn{color:var(--accent);font-weight:700;cursor:pointer;padding:0 1px;user-sel
 .pane-grip::after{content:'';position:absolute;left:3px;top:0;bottom:0;width:2px;background:transparent;transition:background .15s}
 .pane-grip:hover::after,.pane-grip.on::after{background:var(--accent)}
 body.resizing{cursor:col-resize;user-select:none}body.resizing iframe{pointer-events:none}
+
+.bk-kinds{min-width:330px}.bk-ki{width:24px;text-align:center;font-size:17px}
+.bk-kt{font-size:11px;font-weight:600;color:#8e562e;border:1px solid currentColor;border-radius:999px;padding:0 7px;margin-left:6px}
+.bk-card.plan{border-style:dashed;border-left-style:solid;background:color-mix(in srgb,#8e562e 6%,var(--panel))}
+.chip.primary-chip{background:#8e562e;border-color:#8e562e;color:#fff}
 </style>
 </head>
 <body>
@@ -4088,7 +4093,7 @@ Notas de 0 a 10.`;
   async run(s, providers, onStep) {
     const text = AI.sermonText(s); const kind = reviewKind(s); const K = REVIEW_KINDS.find(k => k[0] === kind);
     let ctx = '';
-    if (Book.is(s)) { const nb = Book.nbOf(s.sec); ctx = `LIVRO: "${nb.name}"${Book.info(nb).subtitle ? ' — ' + Book.info(nb).subtitle : ''}. Este é o capítulo ${Book.numOf(s) || '?'}.\nMapa do livro (títulos e resumos dos capítulos):\n` + Book.chapters(nb).filter(c => c.top).map(c => `${c.num}. ${c.s.title}${Book.meta(c.s).synopsis ? ' — ' + Book.meta(c.s).synopsis : ''}`).join('\n') + '\n\n'; }
+    if (Book.is(s)) { const nb = Book.nbOf(s.sec); ctx = `LIVRO: "${nb.name}"${Book.info(nb).subtitle ? ' — ' + Book.info(nb).subtitle : ''}. Esta página é: ${Book.numOf(s) ? 'capítulo ' + Book.numOf(s) : Book.kindLabel(s)}.\nMapa do livro (títulos e resumos):\n` + Book.chapters(nb).filter(c => c.top && !c.plan).map(c => `${c.num ? c.num + '.' : '•'} ${c.s.title}${Book.meta(c.s).synopsis ? ' — ' + Book.meta(c.s).synopsis : ''}`).join('\n') + '\n\n'; }
     const user = `${ctx}Revise este texto (gênero: ${K[1]}):\n\n${text}`;
     const tasks = providers.map(async p => {
       onStep && onStep(p, 'run');
@@ -5365,6 +5370,9 @@ const PaneResize = {
    referências ABNT, exportação do manuscrito, acervo dos sermões, histórico.
    =================================================================== */
 const BOOK_STATUS = [['ideia', 'Ideia', '#8a8886'], ['rascunho', 'Rascunho', '#c25e00'], ['revisando', 'Revisando', '#0f6cbd'], ['pronto', 'Pronto', '#107c10']];
+/* tipos de página do livro: [id, rótulo, onde fica no livro] — 'plan' não entra no manuscrito */
+const BOOK_KINDS = [['capitulo', 'Capítulo', 'body'], ['roteiro', 'Roteiro', 'plan'], ['prefacio', 'Prefácio', 'front'], ['apresentacao', 'Apresentação', 'front'], ['nota', 'Nota do autor', 'front'],
+  ['introducao', 'Introdução', 'body'], ['conclusao', 'Conclusão', 'back'], ['posfacio', 'Posfácio', 'back'], ['apendice', 'Apêndice', 'back']];
 const ROMAN = n => { const v = [[10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']]; let o = ''; for (const [k, r] of v) while (n >= k) { o += r; n -= k; } return o; };
 const fmtN = n => (n || 0).toLocaleString('pt-BR');
 
@@ -5378,7 +5386,9 @@ const Book = {
   /* todos os capítulos em ordem, com número (só os de primeiro nível) */
   chapters(nb) {
     const out = []; let n = 0;
-    for (const part of this.parts(nb)) for (const s of App.sectionSermons(part.id)) { const top = !(s.level > 0); out.push({ part, s, top, num: top ? ++n : null }); }
+    for (const part of this.parts(nb)) { let parent = null; for (const s of App.sectionSermons(part.id)) {
+      const top = !(s.level > 0); if (top) parent = s; const kind = this.kind(s), plan = kind === 'roteiro' || (!top && parent && this.kind(parent) === 'roteiro');
+      out.push({ part, s, top, kind, plan, num: top && kind === 'capitulo' ? ++n : null }); } }
     return out;
   },
   numOf(s) { const nb = this.nbOf(s.sec); return nb ? this.chapters(nb).find(c => c.s.id === s.id)?.num : null; },
@@ -5386,18 +5396,60 @@ const Book = {
     return s.blocks.filter(b => b.type !== 'ink' && b.type !== 'image').map(b => htmlToText(b.html || '')).join('\n');
   },
   words(s) { return (this.plain(s).match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu) || []).length; },
-  bookWords(nb) { return this.chapters(nb).reduce((n, c) => n + this.words(c.s), 0); },
+  bookWords(nb) { return this.chapters(nb).filter(c => !c.plan).reduce((n, c) => n + this.words(c.s), 0); },
+  kind(s) { return this.meta(s).kind || 'capitulo'; },
+  kindLabel(s) { return (BOOK_KINDS.find(k => k[0] === this.kind(s)) || BOOK_KINDS[0])[1]; },
+  /* menu do ＋ no livro: escolher o tipo da página */
+  addMenu(anchor) {
+    $('.mk-menu')?.remove();
+    const box = el('div', { class: 'mk-menu bk-kinds' }, el('div', { class: 'muted small', style: { padding: '4px 10px' }, text: 'Nova página do livro:' }),
+      ...BOOK_KINDS.map(([id, label, where]) => el('button', { class: 'mk-item', onclick: () => { box.remove(); this.newPage(id); } },
+        el('span', { class: 'bk-ki', text: { capitulo: '📄', roteiro: '🧭', prefacio: '✒️', apresentacao: '🤝', nota: '📝', introducao: '🚪', conclusao: '🏁', posfacio: '🕊️', apendice: '📎' }[id] }),
+        el('span', { class: 'mk-l', text: label }), el('kbd', { text: where === 'plan' ? 'não vai para o livro' : where === 'front' ? 'antes dos capítulos' : where === 'back' ? 'depois dos capítulos' : '' }))));
+    document.body.append(box); const r = anchor.getBoundingClientRect();
+    box.style.left = Math.max(8, Math.min(innerWidth - box.offsetWidth - 8, r.left)) + 'px'; box.style.top = (r.bottom + 4) + 'px';
+    setTimeout(() => { const off = e => { if (!box.contains(e.target)) { box.remove(); document.removeEventListener('pointerdown', off, true); } }; document.addEventListener('pointerdown', off, true); }, 0);
+  },
+  newPage(kind = 'capitulo') {
+    const label = (BOOK_KINDS.find(k => k[0] === kind) || BOOK_KINDS[0])[1];
+    const data = { ...this.blankChapter(), title: kind === 'capitulo' ? 'Novo capítulo' : kind === 'roteiro' ? 'Roteiro do livro' : label };
+    data.book = { ...data.book, kind, status: kind === 'roteiro' ? 'ideia' : 'rascunho' };
+    if (kind === 'roteiro') {
+      const B = (type, html) => ({ id: uid(), type, html });
+      data.blocks = [B('subhead', 'Tese central'), B('text', '<i>A ideia do livro numa frase.</i>'), B('subhead', 'Para quem é'), B('text', ''), B('subhead', 'Promessa ao leitor'), B('text', '<i>O que o leitor vai ter/ser/fazer ao terminar.</i>'),
+        B('subhead', 'Capítulos'), B('text', '<ol><li>Título do capítulo — do que ele trata</li><li>Título do capítulo — do que ele trata</li></ol>'), B('subhead', 'Ilustrações e histórias guardadas'), B('text', '')];
+    }
+    App.newSermon(data);
+  },
+  /* lê a lista "Capítulos" do roteiro e cria as páginas que ainda não existem */
+  fromOutline(s) {
+    const nb = this.nbOf(s.sec); const idx = s.blocks.findIndex(b => b.type === 'subhead' && /cap[ií]tulo/i.test(htmlToText(b.html || '')));
+    const scope = idx >= 0 ? s.blocks.slice(idx + 1, (s.blocks.slice(idx + 1).findIndex(b => b.type === 'subhead') + idx + 1) || undefined) : s.blocks;
+    const items = [];
+    for (const b of scope) { if (b.type !== 'text') continue; const d = document.createElement('div'); d.innerHTML = (b.html || '').replace(/<br\s*\/?>|<\/div>|<\/p>/gi, '\n');
+      const lis = d.querySelectorAll('li'); (lis.length ? [...lis].map(li => li.textContent) : d.textContent.split('\n')).forEach(t => { t = t.replace(/^\s*(\d+[.)]|[-•*])\s*/, '').trim(); if (t) items.push(t); }); }
+    const exist = new Set(this.chapters(nb).map(c => (c.s.title || '').trim().toLowerCase()));
+    let made = 0; this.ensureOrder(s.sec); const list = App.sectionSermons(s.sec);
+    for (const t of items) {
+      const [title, ...rest] = t.split(/\s+[—–-]\s+|:\s+/); const name = (title || '').trim(); if (!name || exist.has(name.toLowerCase()) || /^título do capítulo$/i.test(name)) continue;
+      const c = { ...blankSermon(s.sec), ...this.blankChapter(), title: name, order: list.length + made };
+      c.book = { kind: 'capitulo', status: 'ideia', goal: 0, synopsis: rest.join(' — ').trim() };
+      App.sermons.set(c.id, c); App.touch(c); exist.add(name.toLowerCase()); made++;
+    }
+    App.flush(); App.renderNav();
+    UI.toast(made ? `${made} capítulo(s) criado(s) a partir do roteiro, com o resumo de cada um.` : 'Nenhum capítulo novo: escreva a lista em “Capítulos” como “Título — do que trata”.');
+  },
   meta(s) { s.book ||= {}; s.book.status ||= 'rascunho'; s.book.goal ??= 0; s.book.synopsis ??= ''; return s.book; },
   status(s) { return BOOK_STATUS.find(x => x[0] === this.meta(s).status) || BOOK_STATUS[1]; },
   blankChapter() { return { title: 'Novo capítulo', date: '', passage: '', duration: 0, blocks: [{ id: uid(), type: 'text', html: '' }], book: { status: 'rascunho', goal: 0, synopsis: '' } }; },
   pageSub(s) {
-    const st = this.status(s), num = this.numOf(s), w = this.words(s);
+    const st = this.status(s), num = this.numOf(s), w = this.words(s), top = !(s.level > 0), k = this.kind(s);
     return el('div', { class: 'page-sub bk-sub' }, el('span', { class: 'bk-dot', style: { background: st[2] }, title: st[1] }),
-      [num ? 'Cap. ' + num : 'Trecho', fmtN(w) + ' pal.' + (this.meta(s).goal ? ' / ' + fmtN(this.meta(s).goal) : '')].join(' · '));
+      [num ? 'Cap. ' + num : k === 'roteiro' ? '🧭 Roteiro' : top || k !== 'capitulo' ? this.kindLabel(s) : 'Trecho', fmtN(w) + ' pal.' + (this.meta(s).goal ? ' / ' + fmtN(this.meta(s).goal) : '')].join(' · '));
   },
   navLabels() {
     const b = !!this.cur();
-    const pa = $('#page-add'); if (pa) { pa.textContent = b ? '＋ Capítulo' : '＋ Página'; pa.title = b ? 'Novo capítulo' : 'Nova ministração'; }
+    const pa = $('#page-add'); if (pa) { pa.textContent = b ? '＋ Nova ▾' : '＋ Página'; pa.title = b ? 'Novo capítulo, roteiro, prefácio…' : 'Nova ministração'; pa.onclick = b ? e => this.addMenu(e.currentTarget) : () => App.newSermon(); }
     const sa = $('#sec-add'); if (sa) sa.textContent = b ? '＋ Adicionar parte' : '＋ Adicionar seção';
     let bb = $('#book-open');
     if (b && !bb) { bb = el('button', { class: 'btn sm', id: 'book-open', title: 'Visão geral, quadro, dados, referências e exportação do livro', text: '📖 Livro', onclick: () => this.open() }); $('.page-tools')?.prepend(bb); }
@@ -5413,7 +5465,7 @@ const Book = {
     App.meta.notebooks.push(nb);
     const sec = { id: uid(), nb: nb.id, name: 'Capítulos', color: '#8e562e' }; App.meta.sections.push(sec);
     App.meta.currentNb = nb.id; App.meta.currentSec = sec.id; App.saveMeta(); App.renderNav();
-    App.newSermon({ ...this.blankChapter(), title: 'Introdução', order: 0 });
+    this.newPage('roteiro');
   },
 
   /* ---------- cabeçalho do capítulo no editor ---------- */
@@ -5422,10 +5474,11 @@ const Book = {
     const secOpts = App.meta.sections.filter(x => x.nb === nb.id).map(x => `<option value="${x.id}" ${x.id === s.sec ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
     const head = el('div', { class: 's-head bk-head' });
     head.innerHTML = `
-      <div class="bk-kicker">${num ? 'Capítulo ' + num : 'Trecho'} · ${esc(nb.name)}</div>
-      <input id="s-title" class="s-title" value="${esc(s.title)}" placeholder="Título do capítulo">
+      <div class="bk-kicker">${num ? 'Capítulo ' + num : !(s.level > 0) || this.kind(s) !== 'capitulo' ? this.kindLabel(s) : 'Trecho'} · ${esc(nb.name)}${this.kind(s) === 'roteiro' ? ' · não entra no manuscrito' : ''}</div>
+      <input id="s-title" class="s-title" value="${esc(s.title)}" placeholder="Título">
       <textarea id="bk-syn" class="bk-syn" rows="1" placeholder="Resumo do capítulo em uma ou duas linhas (aparece no quadro e ajuda a IA)">${esc(m.synopsis)}</textarea>
       <div class="s-meta">
+        <label>Tipo <select id="bk-kind">${BOOK_KINDS.map(([id, l]) => `<option value="${id}" ${this.kind(s) === id ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         <label>Situação <select id="bk-status">${BOOK_STATUS.map(([id, l]) => `<option value="${id}" ${m.status === id ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         <label>Meta <input id="bk-goal" type="number" min="0" step="500" value="${m.goal || ''}" placeholder="palavras" style="width:6.5em"></label>
         <span class="bk-count" id="bk-count"></span>
@@ -5445,6 +5498,7 @@ const Book = {
     $('#s-title').oninput = e => { s.title = e.target.value; App.touch(); const p = $(`#page-list .page[data-id="${s.id}"] .page-title`); if (p) p.textContent = s.title || 'Sem título'; };
     $('#s-title').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const f = $('#blocks .b-body'); f && f.focus(); } };
     $('#bk-status').onchange = e => { m.status = e.target.value; App.touch(); App.renderPages(); };
+    $('#bk-kind').onchange = e => { m.kind = e.target.value; App.touch(); App.renderPages(); App.renderEditor(); };
     $('#bk-goal').oninput = e => { m.goal = +e.target.value || 0; App.touch(); this.updateCount(); };
     $('#s-sec').onchange = e => { s.sec = e.target.value; s.level = 0; this.ensureOrder(s.sec); s.order = App.sectionSermons(s.sec).length; App.meta.currentSec = s.sec; App.touch(); App.saveMeta(); App.renderNav(); App.renderEditor(); };
     $('#bk-book').onclick = () => this.open();
@@ -5468,7 +5522,8 @@ const Book = {
       ...[['text', 'Texto'], ['subhead', 'Intertítulo'], ['verse', 'Versículo'], ['quote', 'Destaque'], ['image', 'Imagem'], ['ink', 'Desenho']].map(([t, l]) =>
         el('button', { class: 'chip t-' + t, text: '+ ' + l, onclick: () => App.insertBlock(t) })),
       el('button', { class: 'chip', text: '¹ Nota de rodapé', title: 'Inserir nota no ponto do cursor (Ctrl+Alt+N)', onmousedown: e => e.preventDefault(), onclick: () => Footnotes.insert() }),
-      el('button', { class: 'chip bk-arch', text: '📚 Do acervo', title: 'Trazer blocos dos seus sermões para este capítulo', onclick: () => Archive.open(s) }));
+      el('button', { class: 'chip bk-arch', text: '📚 Do acervo', title: 'Trazer blocos dos seus sermões para este capítulo', onclick: () => Archive.open(s) }),
+      this.kind(s) === 'roteiro' ? el('button', { class: 'chip primary-chip', text: '➜ Criar capítulos a partir do roteiro', title: 'Cada item da lista “Capítulos” (Título — resumo) vira uma página de capítulo', onclick: () => this.fromOutline(s) }) : null);
   },
 
   /* ---------- painel do livro ---------- */
@@ -5484,20 +5539,20 @@ const Book = {
     return m;
   },
   tab_geral(P, nb, m) {
-    const B = this.info(nb), ch = this.chapters(nb), total = ch.reduce((n, c) => n + this.words(c.s), 0);
+    const B = this.info(nb), ch = this.chapters(nb), total = this.bookWords(nb);
     const pct = B.goal ? Math.min(100, Math.round(total / B.goal * 100)) : 0;
-    const counts = Object.fromEntries(BOOK_STATUS.map(([id]) => [id, ch.filter(c => c.top && this.meta(c.s).status === id).length]));
+    const counts = Object.fromEntries(BOOK_STATUS.map(([id]) => [id, ch.filter(c => c.num && this.meta(c.s).status === id).length]));
     P.append(el('div', { class: 'bk-prog' },
       el('div', { class: 'bk-big' }, el('b', { text: fmtN(total) }), ` palavras${B.goal ? ' de ' + fmtN(B.goal) : ''}`),
       B.goal ? el('div', { class: 'bk-bar big' }, el('i', { style: { width: pct + '%' } })) : null,
-      el('div', { class: 'muted small', text: `${ch.filter(c => c.top).length} capítulos · ` + BOOK_STATUS.map(([id, l]) => `${counts[id]} ${l.toLowerCase()}`).join(' · ') + (B.goal ? ` · ${pct}% da meta` : '') + ` · ~${Math.max(1, Math.round(total / 250))} páginas de livro` })));
+      el('div', { class: 'muted small', text: `${ch.filter(c => c.num).length} capítulos · ` + BOOK_STATUS.map(([id, l]) => `${counts[id]} ${l.toLowerCase()}`).join(' · ') + (B.goal ? ` · ${pct}% da meta` : '') + ` · ~${Math.max(1, Math.round(total / 250))} páginas de livro` })));
     const tbl = el('table', { class: 'bk-tbl' }, el('tr', {}, el('th', { text: 'Capítulo' }), el('th', { text: 'Situação' }), el('th', { text: 'Palavras' })));
     const multi = this.parts(nb).length > 1; let lastPart = null;
     for (const c of ch) {
       if (multi && c.part !== lastPart) { lastPart = c.part; tbl.append(el('tr', { class: 'bk-part' }, el('td', { colspan: 3, text: c.part.name }))); }
       const st = this.status(c.s), w = this.words(c.s), g = this.meta(c.s).goal;
       tbl.append(el('tr', { class: c.top ? '' : 'bk-sub-row', onclick: () => { m.close(); App.open(c.s.id); } },
-        el('td', {}, el('b', { text: c.top ? `${c.num}. ` : '↳ ' }), c.s.title || 'Sem título', this.meta(c.s).synopsis ? el('div', { class: 'muted small', text: this.meta(c.s).synopsis }) : null),
+        el('td', {}, el('b', { text: c.num ? `${c.num}. ` : c.top ? (c.kind === 'roteiro' ? '🧭 ' : '') : '↳ ' }), c.s.title || 'Sem título', !c.num && c.top && c.kind !== 'capitulo' ? el('span', { class: 'bk-kt', text: this.kindLabel(c.s) }) : null, this.meta(c.s).synopsis ? el('div', { class: 'muted small', text: this.meta(c.s).synopsis }) : null),
         el('td', {}, el('span', { class: 'bk-st', style: { '--c': st[2] }, text: st[1] })),
         el('td', {}, fmtN(w) + (g ? ' / ' + fmtN(g) : ''), g ? el('span', { class: 'bk-bar' }, el('i', { style: { width: Math.min(100, w / g * 100) + '%' } })) : null)));
     }
@@ -5533,8 +5588,8 @@ const Book = {
       col.append(zone(0));
       gs.forEach((g, i) => {
         const s = g[0], st = this.status(s), num = this.numOf(s);
-        const card = el('div', { class: 'bk-card', draggable: 'true', style: { '--c': st[2] } },
-          el('div', { class: 'bk-card-n', text: `Cap. ${num} · ${st[1]}` }),
+        const card = el('div', { class: 'bk-card' + (this.kind(s) === 'roteiro' ? ' plan' : ''), draggable: 'true', style: { '--c': st[2] } },
+          el('div', { class: 'bk-card-n', text: `${num ? 'Cap. ' + num : this.kindLabel(s)} · ${st[1]}` }),
           el('div', { class: 'bk-card-t', text: s.title || 'Sem título', onclick: () => { m.close(); App.open(s.id); } }),
           this.meta(s).synopsis ? el('div', { class: 'bk-card-s', text: this.meta(s).synopsis }) : el('div', { class: 'bk-card-s muted', text: 'sem resumo' }),
           el('div', { class: 'bk-card-w', text: fmtN(g.reduce((n, x) => n + this.words(x), 0)) + ' palavras' + (g.length > 1 ? ` · ${g.length - 1} trecho(s)` : '') }));
@@ -5779,7 +5834,7 @@ const BookExport = {
         e.target.disabled = true; out.textContent = 'Montando o livro…';
         try { App.flush(); const r = await this[o.fmt](nb, o); out.textContent = r || 'Pronto ✓'; } catch (err) { console.error(err); out.textContent = 'Erro: ' + err.message; } finally { e.target.disabled = false; } } }), out));
   },
-  list(nb, o) { const ch = Book.chapters(nb); return o.onlyReady ? ch.filter(c => { const top = c.top ? c : null; const parent = top || [...ch].reverse().find(x => x.top && ch.indexOf(x) < ch.indexOf(c)); return Book.meta(parent.s).status === 'pronto'; }) : ch; },
+  list(nb, o) { const ch = Book.chapters(nb).filter(c => !c.plan); return o.onlyReady ? ch.filter(c => { const top = c.top ? c : null; const parent = top || [...ch].reverse().find(x => x.top && ch.indexOf(x) < ch.indexOf(c)); return Book.meta(parent.s).status === 'pronto'; }) : ch; },
   /* blocos de um capítulo → itens neutros {k:'p'|'h'|'q'|'verse'|'img', html, ref} */
   items(s) {
     const out = [];
@@ -5842,7 +5897,7 @@ const BookExport = {
     for (const c of list) {
       if (multi && c.part !== lastPart) { lastPart = c.part; body += P(run(`Parte ${ROMAN(++pn)}`, { caps: 1 }), 'ParteN', '<w:pageBreakBefore/>') + P(run(c.part.name), 'Parte', '<w:outlineLvl w:val="0"/>'); }
       const lvl = multi ? 1 : 0;
-      if (c.top) { if (o.capLabel) body += P(run(`Capítulo ${c.num}`), 'CapituloN', '<w:pageBreakBefore/>'); body += P(run(c.s.title || 'Sem título'), 'Capitulo', `${o.capLabel ? '' : '<w:pageBreakBefore/>'}<w:outlineLvl w:val="${lvl}"/>`); }
+      if (c.top) { const lab = o.capLabel && c.num; if (lab) body += P(run(`Capítulo ${c.num}`), 'CapituloN', '<w:pageBreakBefore/>'); body += P(run(c.s.title || 'Sem título'), 'Capitulo', `${lab ? '' : '<w:pageBreakBefore/>'}<w:outlineLvl w:val="${lvl}"/>`); }
       else body += P(run(c.s.title || ''), 'Intertitulo');
       let first = true;
       for (const it of this.items(c.s)) {
@@ -5898,7 +5953,7 @@ const BookExport = {
     const core = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${X(F.title)}</dc:title><dc:creator>${X(F.author)}</dc:creator><dc:language>pt-BR</dc:language></cp:coreProperties>`;
     const zip = zipStore([{ name: '[Content_Types].xml', data: ct }, { name: '_rels/.rels', data: root }, { name: 'docProps/core.xml', data: core }, { name: 'word/document.xml', data: doc }, { name: 'word/styles.xml', data: styles }, { name: 'word/settings.xml', data: settings }, { name: 'word/footnotes.xml', data: fnXml }, { name: 'word/footer1.xml', data: footer }, { name: 'word/_rels/document.xml.rels', data: rels }, ...media.map(m => ({ name: m.name, data: m.data }))]);
     await saveFile(this.file(nb, 'docx'), new Blob([zip], { type: W + 'document' }));
-    return `Pronto ✓ ${list.filter(c => c.top).length} capítulo(s), ${notes.length} nota(s). Ao abrir no Word, aceite “atualizar campos” para montar o sumário.`;
+    return `Pronto ✓ ${list.filter(c => c.num).length} capítulo(s), ${notes.length} nota(s). Ao abrir no Word, aceite “atualizar campos” para montar o sumário.`;
   },
 
   /* ---------- HTML do livro (base do EPUB e do PDF) ---------- */
@@ -5950,8 +6005,8 @@ sup a{text-decoration:none}.notas{margin-top:2.5em;border-top:1px solid #999;pad
     for (const c of list) {
       if (multi && c.part !== lastPart) { lastPart = c.part; pn++; add(`parte${pn}.xhtml`, `Parte ${ROMAN(pn)} — ${c.part.name}`, `<section epub:type="part"><p class="capn">Parte ${ROMAN(pn)}</p><h2 class="parte">${esc(c.part.name)}</h2></section>`); }
       const notes = []; const box = this.chapterHTML(c, notes); await fixImgs(box); const nh = this.notesHTML(c, notes);
-      const head = c.top ? `${o.capLabel ? `<p class="capn">Capítulo ${c.num}</p>` : ''}<h1>${esc(c.s.title || 'Sem título')}</h1>` : `<h1>${esc(c.s.title || '')}</h1>`;
-      add(`cap${++k}.xhtml`, c.top ? `${c.num}. ${c.s.title}` : c.s.title, `<section epub:type="chapter">${head}${xml(box)}${nh ? ser.serializeToString(nh).replace(/ xmlns="http:\/\/www\.w3\.org\/1999\/xhtml"/g, '') : ''}</section>`, c.top);
+      const head = c.top ? `${o.capLabel && c.num ? `<p class="capn">Capítulo ${c.num}</p>` : ''}<h1>${esc(c.s.title || 'Sem título')}</h1>` : `<h1>${esc(c.s.title || '')}</h1>`;
+      add(`cap${++k}.xhtml`, c.num ? `${c.num}. ${c.s.title}` : c.s.title, `<section epub:type="chapter">${head}${xml(box)}${nh ? ser.serializeToString(nh).replace(/ xmlns="http:\/\/www\.w3\.org\/1999\/xhtml"/g, '') : ''}</section>`, c.top);
     }
     if (o.refs && Book.info(nb).refs.length) add('referencias.xhtml', 'Referências', `<section class="refs" epub:type="bibliography"><h1>Referências</h1>${Refs.sorted(nb).map(r => `<p>${ser.serializeToString(el('span', { html: Refs.abnt(r).html })).replace(/ xmlns="[^"]+"/g, '')}</p>`).join('')}</section>`);
     if (o.about && F.about) add('autor.xhtml', 'Sobre o autor', `<h1>Sobre o autor</h1>${F.about.split(/\n+/).map(l => `<p>${esc(l)}</p>`).join('')}`);
@@ -5960,7 +6015,7 @@ sup a{text-decoration:none}.notas{margin-top:2.5em;border-top:1px solid #999;pad
     const zip = zipStore([{ name: 'mimetype', data: 'application/epub+zip' }, { name: 'META-INF/container.xml', data: '<?xml version="1.0" encoding="UTF-8"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>' },
       { name: 'OEBPS/content.opf', data: opf }, { name: 'OEBPS/nav.xhtml', data: nav }, { name: 'OEBPS/style.css', data: this.CSS }, ...files.map(f => ({ name: 'OEBPS/' + f.name, data: f.data })), ...imgs.map(m => ({ name: 'OEBPS/' + m.name, data: m.data }))]);
     await saveFile(this.file(nb, 'epub'), new Blob([zip], { type: 'application/epub+zip' }));
-    return `Pronto ✓ e-book com ${list.filter(c => c.top).length} capítulo(s). Antes de publicar, confira no Kindle Previewer ou no app de livros.`;
+    return `Pronto ✓ e-book com ${list.filter(c => c.num).length} capítulo(s). Antes de publicar, confira no Kindle Previewer ou no app de livros.`;
   },
 
   /* ---------- PDF (impressão do navegador) ---------- */
@@ -5976,13 +6031,13 @@ sup a{text-decoration:none}.notas{margin-top:2.5em;border-top:1px solid #999;pad
       if (F.epi) P.append(pb(el('div', { class: 'epi' }, F.epi, F.epiRef ? el('p', { class: 'ref', text: F.epiRef }) : '')));
     }
     const list = this.list(nb, o);
-    if (o.toc) P.append(pb(el('div', { class: 'toc' }, el('h1', { text: 'Sumário' }), ...list.filter(c => c.top).map(c => el('p', { class: 'toc-i', text: `${c.num}. ${c.s.title || ''}` })))));
+    if (o.toc) P.append(pb(el('div', { class: 'toc' }, el('h1', { text: 'Sumário' }), ...list.filter(c => c.top).map(c => el('p', { class: 'toc-i', text: c.num ? `${c.num}. ${c.s.title || ''}` : c.s.title || '' })))));
     if (o.front && F.thanks) P.append(pb(el('h1', { text: 'Agradecimentos' }), ...F.thanks.split(/\n+/).map(l => el('p', { text: l }))));
     const multi = Book.parts(nb).length > 1; let lastPart = null, pn = 0;
     for (const c of list) {
       if (multi && c.part !== lastPart) { lastPart = c.part; P.append(pb(el('p', { class: 'capn', text: 'Parte ' + ROMAN(++pn) }), el('h2', { class: 'parte', text: c.part.name }))); }
       const notes = []; const box = this.chapterHTML(c, notes);
-      const sec = c.top ? pb(o.capLabel ? el('p', { class: 'capn', text: 'Capítulo ' + c.num }) : '', el('h1', { text: c.s.title || '' })) : el('div', {}, el('h3', { text: c.s.title || '' }));
+      const sec = c.top ? pb(o.capLabel && c.num ? el('p', { class: 'capn', text: 'Capítulo ' + c.num }) : '', el('h1', { text: c.s.title || '' })) : el('div', {}, el('h3', { text: c.s.title || '' }));
       sec.append(...box.childNodes); const nh = this.notesHTML(c, notes); if (nh) sec.append(nh); P.append(sec);
     }
     if (o.refs && Book.info(nb).refs.length) P.append(pb(el('div', { class: 'refs' }, el('h1', { text: 'Referências' }), ...Refs.sorted(nb).map(r => el('p', { html: Refs.abnt(r).html })))));
@@ -5998,7 +6053,7 @@ const BookAI = {
   /* trechos repetidos entre capítulos (sem IA): sequências de 9 palavras iguais */
   repeats(nb) {
     const N = 9, seen = new Map(), hits = new Map();
-    const ch = Book.chapters(nb);
+    const ch = Book.chapters(nb).filter(c => !c.plan);
     ch.forEach(c => {
       const words = Search.norm(Book.plain(c.s)).match(/[\p{L}\p{N}]+/gu) || [];
       const local = new Set();
@@ -6025,9 +6080,9 @@ const BookAI = {
       catch (err) { out.innerHTML = ''; out.append(el('p', { class: 'on-log', text: '⚠ ' + err.message })); } finally { e.target.disabled = false; } } }))), out);
     const L = nb.book?.lastAnalysis; if (L) { out.append(el('p', { class: 'muted small', text: `Última análise: ${new Date(L.at).toLocaleString('pt-BR')} (${L.p === 'claude' ? 'Claude' : 'Gemini'})` })); this.show(out, L.r, L.p, true); }
   },
-  lab(c) { return c.top ? `Cap. ${c.num}` : `“${c.s.title}”`; },
+  lab(c) { return c.num ? `Cap. ${c.num}` : `“${c.s.title}”`; },
   async analyze(nb, p, rep) {
-    const ch = Book.chapters(nb); let total = 0; const full = ch.map(c => { const t = Book.plain(c.s); total += t.length; return [c, t]; });
+    const all = Book.chapters(nb), ch = all.filter(c => !c.plan), plan = all.filter(c => c.plan).map(c => Book.plain(c.s)).join('\n').slice(0, 8000); let total = 0; const full = ch.map(c => { const t = Book.plain(c.s); total += t.length; return [c, t]; });
     const LIM = p === 'gemini' ? 600000 : 300000;
     const parts = full.map(([c, t]) => `### ${this.lab(c)} — ${c.s.title}${Book.meta(c.s).synopsis ? `\nResumo do autor: ${Book.meta(c.s).synopsis}` : ''}\n${total > LIM ? t.slice(0, Math.floor(LIM / ch.length)) + (t.length > LIM / ch.length ? '\n[…capítulo resumido…]' : '') : t}`).join('\n\n');
     const sys = `Você é um editor de livros cristãos de não ficção (português do Brasil), experiente em desenvolvimento editorial. Contexto da igreja do autor: ${AI.cfg().church}
@@ -6039,7 +6094,7 @@ Analise o LIVRO INTEIRO e responda SOMENTE com JSON:
  "ordem":["sugestões de reordenar, juntar ou dividir capítulos (diga quais e por quê)"],
  "capitulos":[{"cap":"Cap. N","nota":0,"comentario":"uma frase"}]}
 Seja específico e honesto; não elogie à toa; notas de 0 a 10.`;
-    const user = `Livro: "${nb.name}"${Book.info(nb).subtitle ? ' — ' + Book.info(nb).subtitle : ''}\nRepetições literais já detectadas pelo app: ${rep.slice(0, 15).map(r => `${this.lab(r.a)}/${this.lab(r.b)}: "${r.sample}"`).join('; ') || 'nenhuma'}\n\n${parts}`;
+    const user = `Livro: "${nb.name}"${Book.info(nb).subtitle ? ' — ' + Book.info(nb).subtitle : ''}\n${plan ? 'ROTEIRO/PLANO DO AUTOR (compare o livro com o que ele planejou e diga onde o texto se afastou do plano):\n' + plan + '\n\n' : ''}Repetições literais já detectadas pelo app: ${rep.slice(0, 15).map(r => `${this.lab(r.a)}/${this.lab(r.b)}: "${r.sample}"`).join('; ') || 'nenhuma'}\n\n${parts}`;
     return AI.parseJSON(await AI.ask(p, sys, user, { maxTokens: 8000 }));
   },
   show(out, r, p, keep = false) {
