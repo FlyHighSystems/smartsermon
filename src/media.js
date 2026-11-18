@@ -187,17 +187,33 @@ const Slide = {
     const dim = el('input', { type: 'range', min: 0, max: 0.9, step: 0.05, value: o.dim }); dim.oninput = () => { o.dim = +dim.value; redraw(); };
     const prompt = el('textarea', { class: 'inp', rows: 4 });
     const genOut = el('span', { class: 'muted small' });
+    let cancel = null;
     const genBtn = el('button', { class: 'btn sm primary', text: '✨ Gerar fundo com IA', onclick: async () => {
-      genBtn.disabled = true; genOut.textContent = 'Gerando… (10–30 s)';
-      try { const url = await ImageAI.generate(prompt.value, o.fmt); o.photo = url; (Slide.gen ||= []).unshift(url); addThumb(url, true); genOut.textContent = 'Pronto ✓ (' + ImageAI.lastModel + ') — gere de novo para outras opções.'; redraw(); }
-      catch (e) { genOut.textContent = e.message; } finally { genBtn.disabled = false; } } });
-    const resetPrompt = () => { prompt.value = ImageAI.prompt(o, s); };
+      genBtn.disabled = true; const horde = ImageAI.provider() === 'horde';
+      genOut.textContent = horde ? 'Enviando para a fila do AI Horde…' : 'Gerando… (10–30 s)';
+      const ctl = { cancelled: false }; cancel = ctl; cancelBtn.hidden = !horde;
+      try {
+        const url = horde ? await Horde.generate(prompt.value, o.fmt, { ctl, progress: t => { genOut.textContent = t; } }) : await ImageAI.generate(prompt.value, o.fmt);
+        o.photo = url; (Slide.gen ||= []).unshift(url); addThumb(url, true);
+        genOut.textContent = 'Pronto ✓ (' + (horde ? 'AI Horde · ' + (Horde.lastModel || '') : ImageAI.lastModel) + ') — gere de novo para outras opções.'; redraw();
+      } catch (e) { genOut.textContent = e.message; } finally { genBtn.disabled = false; cancelBtn.hidden = true; cancel = null; } } });
+    const cancelBtn = el('button', { class: 'btn sm', text: 'Cancelar', hidden: true, onclick: () => { if (cancel) cancel.cancelled = true; } });
+    const provChips = el('div', { class: 'sl-chips' });
+    const paintProv = () => { provChips.innerHTML = ''; for (const [v, l, t] of [['gemini', 'Nano Banana (Gemini)', 'Rápido e de alta qualidade; precisa de faturamento no Google'], ['horde', 'AI Horde (grátis)', 'Gratuito e comunitário (Stable Diffusion); pode demorar alguns minutos']])
+      provChips.append(el('button', { class: 'chip' + (ImageAI.provider() === v ? ' on' : ''), text: l, title: t, onclick: () => { ImageAI.setProvider(v); paintProv(); resetPrompt(); } })); };
+    paintProv();
+    const resetPrompt = async () => {
+      if (ImageAI.provider() !== 'horde') { prompt.value = ImageAI.prompt(o, s); return; }
+      prompt.value = Horde.template(o, s);
+      if (AI.has()) { const before = prompt.value; genOut.textContent = 'Escrevendo a descrição em inglês com a IA…';
+        try { const t = await Horde.smartPrompt(o, s); if (prompt.value === before && t) prompt.value = t; genOut.textContent = ''; } catch (e) { genOut.textContent = ''; } }
+    };
     const addThumb = (src, first) => { const t = el('img', { src, title: 'Usar esta imagem', onclick: () => { o.photo = src; redraw(); } }); first ? thumbs.prepend(t) : thumbs.append(t); };
     (Slide.gen || []).forEach(u => addThumb(u));
     const photoRow = el('div', { class: 'sl-photo' },
-      el('div', { class: 'sl-ai' }, el('b', { text: '✨ Fundo temático com IA (Nano Banana)' }),
-        el('span', { class: 'muted small', text: 'Usa sua chave do Gemini. A IA cria só a imagem; o título é escrito por cima pelo app, com letra perfeita.' }),
-        prompt, el('div', { style: { display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' } }, genBtn, el('button', { class: 'btn sm', text: '↺ Descrição automática', onclick: resetPrompt }), genOut)),
+      el('div', { class: 'sl-ai' }, el('b', { text: '✨ Fundo temático com IA' }), provChips,
+        el('span', { class: 'muted small', text: 'A IA cria só a imagem; o título é escrito por cima pelo app, com letra perfeita.' }),
+        prompt, el('div', { style: { display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' } }, genBtn, cancelBtn, el('button', { class: 'btn sm', text: '↺ Descrição automática', onclick: resetPrompt }), genOut)),
       el('button', { class: 'btn sm', text: '📁 Escolher imagem…', onclick: async () => { const [f] = await pickFiles('image/*'); if (!f) return; o.photo = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(f); }); redraw(); } }),
       thumbs, el('label', { class: 'lbl', text: 'Escurecer a imagem (para o texto aparecer)' }), dim);
     o.lastMood ||= o.style !== 'foto' ? o.style : 'noite'; resetPrompt();
@@ -328,6 +344,8 @@ const MarkSummary = {
 const ImageAI = {
   MODELS: ['gemini-3.1-flash-image', 'gemini-3.1-flash-image-preview', 'gemini-2.5-flash-image'],
   model() { return AI.cfg().imageModel; },
+  provider() { try { return localStorage.getItem('ss-img-provider') || (AI.cfg().geminiKey ? 'gemini' : 'horde'); } catch (e) { return 'horde'; } },
+  setProvider(v) { try { localStorage.setItem('ss-img-provider', v); } catch (e) { } },
   MOODS: { noite: 'noturna, tons de roxo e violeta profundos, luz suave e misteriosa', aurora: 'amanhecer, tons quentes de rosa, laranja e dourado, esperança', oceano: 'águas profundas, azul e verde-água, serenidade', brasa: 'fogo e brasas, laranja e vermelho intensos sobre fundo escuro', pedra: 'sóbria, grafite e dourado discreto, elegante', papel: 'clara e luminosa, tons creme e bege, minimalista', foto: 'cinematográfica e atmosférica' },
   prompt(o, s) {
     const mood = this.MOODS[o.lastMood || 'noite'];
@@ -360,5 +378,67 @@ const ImageAI = {
       }
     }
     throw new Error(last || 'Não foi possível gerar a imagem.');
+  }
+};
+
+/* ===== AI Horde: geração gratuita e comunitária (voluntários rodando Stable Diffusion) =====
+   Sem chave usa a anônima (prioridade mais baixa). Uma chave grátis do aihorde.net dá prioridade. */
+const Horde = {
+  API: 'https://aihorde.net/api/v2',
+  AGENT: 'SmartSermon:1.0:smartsermon.sow.digital',
+  MODELS: ['AlbedoBase XL (SDXL)', 'Juggernaut XL', 'ICBINP XL', 'Dreamshaper XL'],
+  SIZES: { '16:9': [1024, 576], '4:3': [1024, 768], '1:1': [1024, 1024], '9:16': [576, 1024] },
+  NEG: 'text, letters, words, typography, caption, watermark, logo, signature, frame, border, nsfw, nude, gore, deformed, disfigured, extra fingers, blurry, lowres, jpeg artifacts',
+  MOODS: { noite: 'deep purple and violet night, soft mysterious light', aurora: 'sunrise, warm pink orange and golden light, hopeful', oceano: 'deep blue and teal water, serene', brasa: 'embers and fire, intense orange and red on dark background', pedra: 'sober charcoal tones with subtle gold, elegant', papel: 'bright airy cream and beige tones, minimalist', foto: 'cinematic atmospheric' },
+  key() { return AI.cfg().hordeKey || '0000000000'; },
+  template(o, s) {
+    return `cinematic background for a christian sermon slide about "${o.title || s.title}"${o.sub ? ` (${o.sub})` : ''}, symbolic reverent scene, ${this.MOODS[o.lastMood || 'noite']}, dramatic soft lighting, depth of field, highly detailed, professional photography, empty dark center for a title`;
+  },
+  async smartPrompt(o, s) {
+    const provider = AI.has('gemini') ? 'gemini' : 'claude';
+    const t = await AI.ask(provider, 'You write prompts for Stable Diffusion XL. Answer ONLY with the prompt, in English, one line, max 60 words, no quotes.',
+      `Write a prompt for a cinematic BACKGROUND image (no text, no letters, no people close-up) for a Christian sermon slide.\nSermon title (Portuguese): ${o.title || s.title}\nBible passage: ${o.sub || s.passage || '-'}\nMood/colors: ${this.MOODS[o.lastMood || 'noite']}\nUse a concrete visual symbol from the passage, leave the center darker and uncluttered for the title.`, { json: false, maxTokens: 200 });
+    return (t || '').replace(/^["'\s]+|["'\s]+$/g, '').split('\n')[0];
+  },
+  async req(path, opts = {}) {
+    const r = await fetch(this.API + path, { ...opts, headers: { 'Client-Agent': this.AGENT, apikey: this.key(), ...(opts.body ? { 'Content-Type': 'application/json' } : {}), ...(opts.headers || {}) } });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { const e = new Error(j.message || ('AI Horde: erro ' + r.status)); e.status = r.status; e.rc = j.rc; throw e; }
+    return j;
+  },
+  async generate(prompt, fmt, { ctl = {}, progress = () => { } } = {}) {
+    const [w, h] = this.SIZES[fmt] || this.SIZES['16:9'];
+    const payload = (models) => ({ prompt: prompt + ' ### ' + this.NEG, params: { width: w, height: h, steps: 28, n: 1, cfg_scale: 6, sampler_name: 'k_euler_a', karras: true },
+      nsfw: false, censor_nsfw: true, trusted_workers: false, r2: false, shared: false, ...(models ? { models } : {}) });
+    let job;
+    try { job = await this.req('/generate/async', { method: 'POST', body: JSON.stringify(payload(this.MODELS)) }); }
+    catch (e) {
+      if (e.status === 400 || e.status === 403) { try { job = await this.req('/generate/async', { method: 'POST', body: JSON.stringify(payload(null)) }); } catch (e2) { throw new Error('AI Horde recusou: ' + e2.message); } }
+      else if (e.status === 429) throw new Error('AI Horde: muitas solicitações agora. Tente em um minuto.');
+      else throw new Error(e.message === 'Failed to fetch' ? 'Sem conexão com o AI Horde.' : 'AI Horde: ' + e.message);
+    }
+    const id = job.id; const t0 = Date.now();
+    try {
+      for (;;) {
+        if (ctl.cancelled) throw new Error('Cancelado.');
+        await new Promise(r => setTimeout(r, 3000));
+        const c = await this.req('/generate/check/' + id);
+        if (c.faulted) throw new Error('AI Horde: a geração falhou num voluntário. Tente de novo.');
+        if (c.is_possible === false) throw new Error('AI Horde: nenhum voluntário disponível para esse pedido agora.');
+        if (c.done) break;
+        const el2 = Math.round((Date.now() - t0) / 1000);
+        progress(c.processing ? `Desenhando… (${el2}s)` : `Na fila: posição ${c.queue_position ?? '?'} · espera estimada ~${c.wait_time ?? '?'}s (${el2}s)`);
+        if (Date.now() - t0 > 10 * 60 * 1000) throw new Error('AI Horde demorou demais (10 min). Tente mais tarde ou use uma chave do aihorde.net para ter prioridade.');
+      }
+      const st = await this.req('/generate/status/' + id);
+      const g = st.generations?.[0]; if (!g?.img) throw new Error('AI Horde não devolveu imagem.');
+      if (g.censored) throw new Error('O filtro do AI Horde bloqueou a imagem. Mude a descrição.');
+      this.lastModel = g.model || '';
+      if (/^https?:/.test(g.img)) { const b = await (await fetch(g.img)).blob(); return await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); }); }
+      return 'data:image/webp;base64,' + g.img;
+    } catch (e) {
+      if (ctl.cancelled || /Cancelado|demorou/.test(e.message)) this.req('/generate/status/' + id, { method: 'DELETE' }).catch(() => { });
+      throw e;
+    }
   }
 };
