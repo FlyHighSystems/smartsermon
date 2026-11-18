@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>SmartSermon — Leitura</title>
+<link rel="icon" href="icon-192.png">
+<style>
+:root{--bg:#ffffff;--fg:#1d1d1f;--muted:#6e6e73;--accent:#7719aa;--verse:#0f6cbd;--line:#e6e6e6;--card:#f6f5f8;color-scheme:light}
+body[data-theme=sepia]{--bg:#f4ecd8;--fg:#3b2f22;--muted:#8a7a63;--accent:#7a2e8f;--verse:#2c5b8f;--line:#e2d6bb;--card:#ece2c8}
+body[data-theme=dark]{--bg:#111214;--fg:#ededed;--muted:#9a9aa3;--accent:#d7b4f0;--verse:#8cc4ff;--line:#2a2b30;--card:#1c1d21;color-scheme:dark}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--fg)}
+body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif}
+.bar{position:sticky;top:0;display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--bg);border-bottom:1px solid var(--line);z-index:2}
+.bar .brand{font-weight:700;color:var(--accent);flex:1;font-size:14px}
+.bar button{border:1px solid var(--line);background:transparent;color:var(--fg);border-radius:8px;min-width:40px;min-height:36px;font-size:15px;cursor:pointer}
+main{max-width:46em;margin:0 auto;padding:24px 20px 80px;line-height:1.6;font-size:var(--fs,20px)}
+h1{font-size:1.6em;margin:0 0 .2em;line-height:1.2}
+.meta{color:var(--muted);font-size:.8em;margin:0 0 1.2em}
+h2{color:var(--accent);font-size:1.25em;margin:1.4em 0 .4em;line-height:1.25}
+.verse{margin:.8em 0;padding:.2em 0 .2em .9em;border-left:.18em solid var(--verse);font-style:italic}
+.verse .ref{font-style:normal;font-weight:700;color:var(--verse);font-size:.75em;margin-bottom:.2em}
+.verse sup{font-size:.6em;color:var(--verse);font-style:normal}
+.call{margin:.8em 0;padding:.5em .9em;border-radius:.4em;background:var(--card);border-left:.18em solid var(--accent)}
+.call small{display:block;font-size:.6em;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--accent)}
+.text div{margin-bottom:.35em}
+figure{margin:1em 0}img{max-width:100%;border-radius:.3em}figcaption{font-size:.7em;color:var(--muted)}
+img.ink{background:#fff;padding:.4em;border-radius:.4em}
+.msg{text-align:center;color:var(--muted);padding:80px 20px;font-size:18px}
+footer{text-align:center;color:var(--muted);font-size:12px;padding:20px}
+body.locked main{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+body.locked img{pointer-events:none}
+@media print{body.locked *{display:none!important}body.locked:after{content:"A impressão deste conteúdo foi desativada pelo autor.";display:block;padding:40px;font-size:18px}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <span class="brand">SmartSermon</span>
+  <button id="sm" title="Letra menor">A−</button><button id="bg" title="Letra maior">A+</button><button id="th" title="Tema">◐</button>
+</div>
+<main id="c"><div class="msg">Carregando…</div></main>
+<footer>Visualização somente leitura · SmartSermon</footer>
+<script src="config.js"></script>
+<script>
+(function () {
+  var C = document.getElementById('c'), cfg = window.SMARTSERMON_CONFIG || {};
+  var fs = +(localStorage.getItem('ler-fs') || 20), th = localStorage.getItem('ler-th') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  function apply() { document.documentElement.style.setProperty('--fs', fs + 'px'); document.body.dataset.theme = th; try { localStorage.setItem('ler-fs', fs); localStorage.setItem('ler-th', th); } catch (e) { } }
+  apply();
+  document.getElementById('sm').onclick = function () { fs = Math.max(14, fs - 2); apply(); };
+  document.getElementById('bg').onclick = function () { fs = Math.min(40, fs + 2); apply(); };
+  document.getElementById('th').onclick = function () { th = { light: 'sepia', sepia: 'dark', dark: 'light' }[th] || 'light'; apply(); };
+  function msg(t) { C.innerHTML = ''; var d = document.createElement('div'); d.className = 'msg'; d.textContent = t; C.appendChild(d); }
+  // Sanitiza o HTML recebido (só marcas de formatação; imagens apenas data:)
+  var OK = { H1: 1, H2: 1, H3: 1, P: 1, DIV: 1, SPAN: 1, B: 1, STRONG: 1, I: 1, EM: 1, U: 1, S: 1, SUP: 1, SUB: 1, BR: 1, UL: 1, OL: 1, LI: 1, BLOCKQUOTE: 1, FIGURE: 1, FIGCAPTION: 1, IMG: 1, SMALL: 1, MARK: 1 };
+  function clean(html) {
+    var doc = new DOMParser().parseFromString('<div>' + html + '</div>', 'text/html'), root = doc.body.firstChild;
+    (function walk(n) {
+      Array.prototype.slice.call(n.childNodes).forEach(function (c) {
+        if (c.nodeType !== 1) { if (c.nodeType !== 3) c.remove(); return; }
+        if (!OK[c.tagName]) { while (c.firstChild) c.parentNode.insertBefore(c.firstChild, c); c.remove(); return; }
+        Array.prototype.slice.call(c.attributes).forEach(function (a) {
+          var keep = a.name === 'class' || (c.tagName === 'IMG' && a.name === 'src' && /^data:image\/(png|jpe?g|gif|webp);/i.test(a.value)) || (a.name === 'style' && /^(color|background-color):[^;]{1,40};?$/.test(a.value)) || a.name === 'alt';
+          if (!keep) c.removeAttribute(a.name);
+        });
+        if (c.tagName === 'IMG' && !c.getAttribute('src')) { c.remove(); return; }
+        walk(c);
+      });
+    })(root);
+    return root.innerHTML;
+  }
+  var id = new URLSearchParams(location.search).get('id');
+  if (!id || !cfg.supabaseUrl) return msg('Link inválido.');
+  fetch(cfg.supabaseUrl.replace(/\/+$/, '') + '/rest/v1/rpc/get_share', { method: 'POST', headers: { apikey: cfg.supabaseAnonKey, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_id: id }) })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (j) {
+      if (!j || !j.data) return msg('Este link expirou, foi revogado ou não existe.');
+      document.title = j.data.title + ' — SmartSermon';
+      C.innerHTML = clean(j.data.html || '');
+      if (!j.allow_copy) {
+        document.body.classList.add('locked');
+        ['copy', 'cut', 'contextmenu', 'dragstart', 'selectstart'].forEach(function (ev) { document.addEventListener(ev, function (e) { e.preventDefault(); }); });
+        document.addEventListener('keydown', function (e) { if ((e.ctrlKey || e.metaKey) && /^[acxspu]$/i.test(e.key)) e.preventDefault(); });
+        window.addEventListener('beforeprint', function () { C.style.display = 'none'; }); window.addEventListener('afterprint', function () { C.style.display = ''; });
+      }
+    })
+    .catch(function () { msg('Não foi possível carregar. Verifique a internet e tente de novo.'); });
+})();
+</script>
+</body>
+</html>

@@ -516,7 +516,11 @@ const Porter = {
           el('button', { class: 'btn primary', text: 'PDF', disabled: !s, onclick: () => { m.close(); this.pdf(s); } }),
           el('button', { class: 'btn primary', text: 'Word (.docx)', disabled: !s, onclick: async () => { m.close(); await this.docx(s); } })),
         el('p', { class: 'muted small', text: 'PDF: na janela de impressão escolha “Salvar como PDF” (ou “Microsoft Print to PDF”).' })),
-      el('div', { class: 'imp-card' }, el('h4', { text: 'Backup de tudo' }), el('p', { class: 'muted', text: 'Cadernos, seções e ministrações num único arquivo .json. Guarde no Google Drive/OneDrive até a sincronização automática chegar (Fase 2).' }),
+      el('div', { class: 'imp-card hl' }, el('h4', { text: 'Compartilhar' }), el('p', { class: 'muted small', text: 'Copiar para o WhatsApp ou criar um link de leitura online (com cópia bloqueada).' }),
+        el('div', { class: 'row-btns', style: { flexWrap: 'wrap' } },
+          el('button', { class: 'btn primary', text: '📋 Copiar para WhatsApp', disabled: !s, onclick: () => Share.copyText(Share.whatsapp(s)) }),
+          el('button', { class: 'btn', text: '🔗 Link de leitura…', disabled: !s, onclick: () => { m.close(); Share.open(s); } }))),
+      el('div', { class: 'imp-card' }, el('h4', { text: 'Backup de tudo' }), el('p', { class: 'muted', text: 'Cadernos, seções e ministrações num único arquivo .json. Uma garantia extra além da nuvem.' }),
         el('button', { class: 'btn', text: 'Baixar backup (.json)', onclick: () => { m.close(); this.backup(); } })));
     const m = UI.modal({ title: 'Exportar', body, wide: true });
   },

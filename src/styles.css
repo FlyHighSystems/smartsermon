@@ -374,3 +374,9 @@ body.dragging #sec-list .sec{transition:background .15s}
 .page,.sec{-webkit-touch-callout:none;user-select:none}
 
 .sec.drop-before{box-shadow:inset 0 3px 0 var(--accent)}.sec.drop-after{box-shadow:inset 0 -3px 0 var(--accent)}
+
+/* Compartilhar */
+.sh-row{border-top:1px solid var(--line);padding:10px 0;display:flex;flex-direction:column;gap:6px}
+.sh-url code{word-break:break-all;font-size:13px}
+a.btn{text-decoration:none;display:inline-flex;align-items:center;color:inherit}
+.wa-pre{white-space:pre-wrap;font-family:"Segoe UI",sans-serif;font-size:14px;background:var(--panel2);padding:12px;border-radius:10px;max-height:60vh;overflow:auto}

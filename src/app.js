@@ -361,6 +361,7 @@ const App = {
         <span class="s-actions">
           <button class="btn sm ai-btn" id="s-review" title="Revisar com IA (Claude e Gemini) e conferir referências">✦ Revisar</button>
           <button class="btn sm" id="s-report" title="Pregações registradas e relatório pós-culto">📊 Pregações${(s.preached || []).length ? ' (' + s.preached.length + ')' : ''}</button>
+          <button class="btn sm" id="s-share" title="Copiar para WhatsApp ou criar link de leitura">↗ Compartilhar</button>
           <button class="btn sm" id="s-move" title="Mover ou copiar para outra seção">⇢ Mover/Copiar</button>
           <button class="btn sm" id="s-dup" title="Duplicar">Duplicar</button>
           <button class="btn sm danger-text" id="s-del" title="Excluir">Excluir</button>
@@ -379,6 +380,7 @@ const App = {
     $('#s-duration').oninput = e => { s.duration = +e.target.value || 0; this.touch(); };
     $('#s-sec').onchange = e => { s.sec = e.target.value; const sec = this.meta.sections.find(x => x.id === s.sec); this.meta.currentSec = sec.id; this.meta.currentNb = sec.nb; this.touch(); this.saveMeta(); this.renderNav(); };
     $('#s-dup').onclick = () => this.duplicateSermon();
+    $('#s-share').onclick = () => { this.flush(); Share.open(s); };
     $('#s-move').onclick = async () => {
       const r = await SectionPicker.pick(`“${s.title}”`, true); if (r) this.moveSermons([s.id], r.sec, r.copy);
     };

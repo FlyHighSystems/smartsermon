@@ -1,6 +1,6 @@
 import json, pathlib
 R = pathlib.Path(__file__).parent; S = R/'src'; D = R  # o site é publicado a partir da raiz do repositório
-js = '\n'.join((S/f).read_text() for f in ['core.js','books.js','bible.js','ink.js','theme.js','estimate.js','app.js','reader.js','porter.js','onenote.js','cloud.js','ai.js','report.js','strong.js','main.js'])
+js = '\n'.join((S/f).read_text() for f in ['core.js','books.js','bible.js','ink.js','theme.js','estimate.js','app.js','reader.js','porter.js','onenote.js','cloud.js','ai.js','report.js','strong.js','share.js','main.js'])
 html = (S/'index.html').read_text().replace('/*CSS*/', (S/'styles.css').read_text()).replace('/*JS*/', js)
 (D/'index.html').write_text(html)
 (D/'manifest.webmanifest').write_text(json.dumps({
@@ -18,4 +18,5 @@ self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.me
 if not (D/'config.js').exists():
     (D/'config.js').write_text("// Configuração da nuvem (Supabase). A chave 'anon public' é feita para ficar no navegador:\n// a proteção dos dados vem das regras de segurança (RLS) criadas pelo supabase.sql.\nwindow.SMARTSERMON_CONFIG = {\n  supabaseUrl: '',      // ex.: 'https://abcdefgh.supabase.co'\n  supabaseAnonKey: ''   // Project Settings > API > anon public\n};\n")
 (D/'.nojekyll').write_text('')
+(D/'ler.html').write_text((S/'ler.html').read_text())
 print('ok', len(html)//1024, 'KB')

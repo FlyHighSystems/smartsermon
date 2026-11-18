@@ -75,3 +75,33 @@ create policy "images_own_update" on storage.objects for update to authenticated
 drop policy if exists "images_own_delete" on storage.objects;
 create policy "images_own_delete" on storage.objects for delete to authenticated
   using (bucket_id = 'images' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- ============================================================
+-- Links de leitura (compartilhar uma ministração só para ler)
+-- ============================================================
+create table if not exists public.shares (
+  id          text primary key,                 -- código aleatório do link
+  user_id     uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  sermon_id   text not null,
+  data        jsonb not null,                   -- cópia do conteúdo no momento da publicação
+  allow_copy  boolean not null default false,
+  revoked     boolean not null default false,
+  expires_at  timestamptz,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+alter table public.shares enable row level security;
+drop policy if exists "shares_own" on public.shares;
+create policy "shares_own" on public.shares
+  for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- Leitura pública só por quem tem o código (não permite listar os links)
+create or replace function public.get_share(p_id text) returns jsonb
+language sql stable security definer set search_path = public as $$
+  select jsonb_build_object('data', data, 'allow_copy', allow_copy, 'updated_at', updated_at)
+  from public.shares
+  where id = p_id and not revoked and (expires_at is null or expires_at > now())
+$$;
+revoke all on function public.get_share(text) from public;
+grant execute on function public.get_share(text) to anon, authenticated;
