@@ -538,3 +538,5 @@ body.resizing{cursor:col-resize;user-select:none}body.resizing iframe{pointer-ev
 .bk-kt{font-size:11px;font-weight:600;color:#8e562e;border:1px solid currentColor;border-radius:999px;padding:0 7px;margin-left:6px}
 .bk-card.plan{border-style:dashed;border-left-style:solid;background:color-mix(in srgb,#8e562e 6%,var(--panel))}
 .chip.primary-chip{background:#8e562e;border-color:#8e562e;color:#fff}
+
+body.in-book #nb-pane{background:color-mix(in srgb,#8e562e 7%,var(--panel2))}body.in-book #nb-select{border-color:#8e562e}
