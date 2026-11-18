@@ -97,7 +97,7 @@ const SLIDE_STYLES = [
   { id: 'brasa',   name: 'Brasa',        bg: ['#120806', '#4a1408', '#c2410c'], fg: '#fff6ec', sub: '#ffd2a8', accent: '#ff9b4a', glow: 'rgba(255,155,74,.35)' },
   { id: 'pedra',   name: 'Grafite',      bg: ['#0e0e10', '#1f2024', '#34363d'], fg: '#f5f5f5', sub: '#b9bcc6', accent: '#e8c46a', glow: 'rgba(232,196,106,.18)' },
   { id: 'papel',   name: 'Claro',        bg: ['#fbf8f3', '#f2ece2', '#e9e0d1'], fg: '#1c1a17', sub: '#6b5f4f', accent: '#7719aa', glow: 'rgba(119,25,170,.10)' },
-  { id: 'foto',    name: 'Sua imagem',   bg: ['#000', '#000', '#000'],          fg: '#ffffff', sub: '#f0f0f0', accent: '#ffffff', glow: 'rgba(0,0,0,0)' }
+  { id: 'foto',    name: 'Foto / IA',   bg: ['#000', '#000', '#000'],          fg: '#ffffff', sub: '#f0f0f0', accent: '#ffffff', glow: 'rgba(0,0,0,0)' }
 ];
 const SLIDE_FORMATS = [['16:9', 1920, 1080, 'Telão 16:9'], ['4:3', 1440, 1080, 'Telão 4:3'], ['1:1', 1080, 1080, 'Feed 1:1'], ['9:16', 1080, 1920, 'Stories 9:16']];
 const SLIDE_FONTS = [['moderna', 'Moderna', '"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif', 700], ['classica', 'Clássica', 'Georgia,"Times New Roman",serif', 700], ['condensada', 'Condensada', 'Bahnschrift,"Arial Narrow","Roboto Condensed",sans-serif', 700]];
@@ -176,7 +176,7 @@ const Slide = {
       s.slide = { style: o.style, fmt: o.fmt, font: o.font, align: o.align, title: o.title, sub: o.sub, kicker: o.kicker, showKicker: o.showKicker, footer: o.footer, upper: o.upper, dim: o.dim }; App.touch(s); };
     const field = (label, key, ph) => { const i = el('input', { class: 'inp', value: o[key] || '', placeholder: ph || '' }); i.oninput = () => { o[key] = i.value; redraw(); }; return [el('label', { class: 'lbl', text: label }), i]; };
     const chips = (list, key, render) => { const box = el('div', { class: 'sl-chips' }); const paint = () => box.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === String(o[key])));
-      for (const it of list) box.append(render(it, () => { o[key] = it.id ?? it[0]; paint(); redraw(); photoRow.hidden = o.style !== 'foto'; })); paint(); return box; };
+      for (const it of list) box.append(render(it, () => { o[key] = it.id ?? it[0]; if (key === 'style' && o.style !== 'foto') { o.lastMood = o.style; resetPrompt(); } paint(); redraw(); photoRow.hidden = o.style !== 'foto'; })); paint(); return box; };
     const styleChips = chips(SLIDE_STYLES, 'style', (st, pick) => el('button', { class: 'sl-sw', 'data-v': st.id, title: st.name, onclick: pick, style: { background: st.id === 'foto' ? 'repeating-linear-gradient(45deg,#444 0 6px,#666 6px 12px)' : `linear-gradient(135deg,${st.bg[0]},${st.bg[1]} 55%,${st.bg[2]})`, color: st.fg } }, el('span', { text: st.name })));
     const fmtChips = chips(SLIDE_FORMATS, 'fmt', (f, pick) => el('button', { class: 'chip', 'data-v': f[0], text: f[3], onclick: pick }));
     const fontChips = chips(SLIDE_FONTS, 'font', (f, pick) => el('button', { class: 'chip', 'data-v': f[0], text: f[1], onclick: pick, style: { fontFamily: f[2] } }));
@@ -185,9 +185,22 @@ const Slide = {
     const thumbs = el('div', { class: 'sl-thumbs' });
     for (const b of s.blocks.filter(b => b.type === 'image' && b.src).slice(0, 8)) thumbs.append(el('img', { src: b.src, title: 'Usar esta imagem', onclick: () => { o.photo = b.src; redraw(); } }));
     const dim = el('input', { type: 'range', min: 0, max: 0.9, step: 0.05, value: o.dim }); dim.oninput = () => { o.dim = +dim.value; redraw(); };
+    const prompt = el('textarea', { class: 'inp', rows: 4 });
+    const genOut = el('span', { class: 'muted small' });
+    const genBtn = el('button', { class: 'btn sm primary', text: '✨ Gerar fundo com IA', onclick: async () => {
+      genBtn.disabled = true; genOut.textContent = 'Gerando… (10–30 s)';
+      try { const url = await ImageAI.generate(prompt.value, o.fmt); o.photo = url; (Slide.gen ||= []).unshift(url); addThumb(url, true); genOut.textContent = 'Pronto ✓ (' + ImageAI.lastModel + ') — gere de novo para outras opções.'; redraw(); }
+      catch (e) { genOut.textContent = e.message; } finally { genBtn.disabled = false; } } });
+    const resetPrompt = () => { prompt.value = ImageAI.prompt(o, s); };
+    const addThumb = (src, first) => { const t = el('img', { src, title: 'Usar esta imagem', onclick: () => { o.photo = src; redraw(); } }); first ? thumbs.prepend(t) : thumbs.append(t); };
+    (Slide.gen || []).forEach(u => addThumb(u));
     const photoRow = el('div', { class: 'sl-photo' },
+      el('div', { class: 'sl-ai' }, el('b', { text: '✨ Fundo temático com IA (Nano Banana)' }),
+        el('span', { class: 'muted small', text: 'Usa sua chave do Gemini. A IA cria só a imagem; o título é escrito por cima pelo app, com letra perfeita.' }),
+        prompt, el('div', { style: { display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' } }, genBtn, el('button', { class: 'btn sm', text: '↺ Descrição automática', onclick: resetPrompt }), genOut)),
       el('button', { class: 'btn sm', text: '📁 Escolher imagem…', onclick: async () => { const [f] = await pickFiles('image/*'); if (!f) return; o.photo = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(f); }); redraw(); } }),
       thumbs, el('label', { class: 'lbl', text: 'Escurecer a imagem (para o texto aparecer)' }), dim);
+    o.lastMood ||= o.style !== 'foto' ? o.style : 'noite'; resetPrompt();
     photoRow.hidden = o.style !== 'foto';
     const upper = el('input', { type: 'checkbox', checked: o.upper }); upper.onchange = () => { o.upper = upper.checked; redraw(); };
     const kick = el('input', { type: 'checkbox', checked: o.showKicker }); kick.onchange = () => { o.showKicker = kick.checked; redraw(); };
@@ -217,5 +230,135 @@ const Slide = {
     const key = e => { if (e.key === 'Escape') close(); };
     ov.onclick = close; document.addEventListener('keydown', key); document.body.append(ov);
     ov.requestFullscreen?.().catch(() => { });
+  }
+};
+
+/* ===== Resumo das marcações (como o "Resumo de marcas" do OneNote) ===== */
+const MarkSummary = {
+  pref() { try { return { scope: 'sec', group: 'mark', ...JSON.parse(localStorage.getItem('ss-mksum') || '{}') }; } catch (e) { return { scope: 'sec', group: 'mark' }; } },
+  savePref(p) { try { localStorage.setItem('ss-mksum', JSON.stringify(p)); } catch (e) { } },
+  pool(scope) {
+    const m = App.meta;
+    if (scope === 'page') return App.cur ? [App.cur] : [];
+    if (scope === 'all') return [...App.sermons.values()];
+    if (scope === 'nb') { const secs = new Set(m.sections.filter(x => x.nb === m.currentNb).map(x => x.id)); return [...App.sermons.values()].filter(s => secs.has(s.sec)); }
+    return App.sectionSermons(m.currentSec);
+  },
+  text(b) {
+    if (b.type === 'verse') return [b.ref, htmlToText(b.html || '')].filter(Boolean).join(' — ');
+    if (b.type === 'ink') return '[Desenho à mão]';
+    if (b.type === 'image') return htmlToText(b.html || '') || '[Imagem]';
+    return htmlToText(b.html || '');
+  },
+  collect(scope) {
+    const out = [];
+    for (const s of this.pool(scope)) s.blocks.forEach((b, i) => { if (b.marks?.length) out.push({ s, b, i }); });
+    return out.sort((a, b) => (b.s.date || '').localeCompare(a.s.date || '') || a.i - b.i);
+  },
+  open() {
+    const p = this.pref(); let filter = new Set(p.filter || []);
+    const body = el('div', { class: 'mks' });
+    const head = el('div', { class: 'mks-head' }), list = el('div', { class: 'mks-list' });
+    body.append(head, list);
+    const sc = App.meta.sections.find(x => x.id === App.meta.currentSec)?.name || 'Seção', nb = App.meta.notebooks.find(n => n.id === App.meta.currentNb)?.name || 'Caderno';
+    const render = () => {
+      const items = this.collect(p.scope);
+      const counts = {}; items.forEach(it => it.b.marks.forEach(id => counts[id] = (counts[id] || 0) + 1));
+      const shown = items.filter(it => !filter.size || it.b.marks.some(id => filter.has(id)));
+      head.innerHTML = '';
+      head.append(
+        el('div', { class: 'sl-chips' }, ...[['page', 'Esta ministração'], ['sec', sc], ['nb', nb], ['all', 'Tudo']].map(([v, l]) =>
+          el('button', { class: 'chip' + (p.scope === v ? ' on' : ''), text: l, disabled: v === 'page' && !App.cur, onclick: () => { p.scope = v; this.savePref({ ...p, filter: [...filter] }); render(); } }))),
+        el('div', { class: 'mks-filter' }, ...MARKS.filter(m => counts[m.id]).map(m =>
+          el('button', { class: 'mks-f' + (filter.has(m.id) ? ' on' : ''), title: m.label, style: { '--mc': m.color }, onclick: () => { filter.has(m.id) ? filter.delete(m.id) : filter.add(m.id); this.savePref({ ...p, filter: [...filter] }); render(); } },
+            this.badge(m), el('span', { text: m.label }), el('b', { text: counts[m.id] }))),
+          filter.size ? el('button', { class: 'btn link', text: 'Mostrar todas', onclick: () => { filter.clear(); this.savePref({ ...p, filter: [] }); render(); } }) : null),
+        el('div', { class: 'mks-group' }, el('span', { class: 'muted small', text: `${shown.length} marcação(ões) · agrupar por ` }),
+          ...[['mark', 'marcação'], ['page', 'página']].map(([v, l]) => el('button', { class: 'chip' + (p.group === v ? ' on' : ''), text: l, onclick: () => { p.group = v; this.savePref({ ...p, filter: [...filter] }); render(); } }))));
+      list.innerHTML = '';
+      if (!shown.length) { list.append(el('p', { class: 'muted pad', text: items.length ? 'Nenhuma marcação com esse filtro.' : 'Nenhum bloco marcado aqui. Use o 🏷 de um bloco ou Alt+1…9.' })); return; }
+      const row = it => el('button', { class: 'mks-item', onclick: () => { m.close(); this.goto(it.s.id, it.b.id); } },
+        el('span', { class: 'mks-badges' }, ...it.b.marks.map(id => Marks.get(id)).filter(Boolean).map(mm => this.badge(mm))),
+        el('span', { class: 'mks-body' }, el('span', { class: 'mks-t', text: this.text(it.b).slice(0, 280) || '(vazio)' }),
+          el('span', { class: 'mks-src', text: [it.s.title || 'Sem título', it.s.date ? new Date(it.s.date + 'T12:00').toLocaleDateString('pt-BR') : '', p.scope !== 'sec' && p.scope !== 'page' ? Search.where(it.s) : ''].filter(Boolean).join(' · ') })));
+      if (p.group === 'page') {
+        const by = new Map(); shown.forEach(it => { if (!by.has(it.s.id)) by.set(it.s.id, []); by.get(it.s.id).push(it); });
+        for (const arr of by.values()) list.append(el('h4', { class: 'mks-h', text: arr[0].s.title || 'Sem título' }), ...arr.map(row));
+      } else {
+        for (const mm of MARKS) { const arr = shown.filter(it => it.b.marks.includes(mm.id) && (!filter.size || filter.has(mm.id))); if (!arr.length) continue;
+          list.append(el('h4', { class: 'mks-h', style: { color: mm.color } }, this.badge(mm), ' ' + mm.label + ` (${arr.length})`), ...arr.map(row)); }
+      }
+      body._shown = shown;
+    };
+    const m = UI.modal({ title: '🏷 Resumo das marcações', body, wide: true, actions: [
+      { label: 'Copiar lista', onClick: () => { Share.copyText(this.asText(body._shown || [], p.group)); return false; } },
+      { label: 'Criar página com a lista', primary: true, onClick: () => { this.toPage(body._shown || [], filter); } }] });
+    render();
+  },
+  badge(m) { return el('span', { class: 'mk', html: Marks.svg(m, 18) }); },
+  asText(items, group) {
+    const lines = ['*Resumo das marcações*'];
+    if (group === 'page') { let last; for (const it of items) { if (it.s !== last) { lines.push('', '*' + (it.s.title || 'Sem título') + '*'); last = it.s; } lines.push(Marks.emoji(it.b) + ' ' + this.text(it.b)); } }
+    else for (const mm of MARKS) { const arr = items.filter(it => it.b.marks.includes(mm.id)); if (!arr.length) continue; lines.push('', `${mm.emoji} *${mm.label}*`); arr.forEach(it => lines.push(`• ${this.text(it.b)} _(${it.s.title || 'Sem título'})_`)); }
+    return lines.join('\n');
+  },
+  toPage(items, filter) {
+    if (!items.length) { UI.toast('Nada para juntar.'); return false; }
+    const labels = filter.size ? MARKS.filter(m => filter.has(m.id)).map(m => m.label).join(', ') : 'todas';
+    const blocks = [];
+    for (const it of items) {
+      const nb = structuredClone(it.b); nb.id = uid(); if (nb.type === 'point') nb.type = 'text';
+      blocks.push(nb);
+      blocks.push({ id: uid(), type: 'text', html: `<i>— de “${esc(it.s.title || 'Sem título')}”${it.s.date ? ', ' + new Date(it.s.date + 'T12:00').toLocaleDateString('pt-BR') : ''}</i>` });
+    }
+    App.newSermon({ title: `Resumo de marcações — ${labels}`, passage: '', blocks, duration: 0 });
+    UI.toast('Página criada com ' + items.length + ' item(ns).');
+  },
+  goto(sid, bid) {
+    App.open(sid);
+    setTimeout(() => { const n = $(`#blocks .block[data-id="${bid}"]`); if (!n) return; n.scrollIntoView({ behavior: 'smooth', block: 'center' }); n.classList.add('mk-flash'); setTimeout(() => n.classList.remove('mk-flash'), 1800); }, 80);
+  },
+  init() {
+    const tools = $('.page-tools'); if (tools && !$('#page-marks')) tools.append(el('button', { class: 'btn sm', id: 'page-marks', title: 'Resumo das marcações (Ctrl+Shift+M)', text: '🏷 Marcações', onclick: () => this.open() }));
+    document.addEventListener('keydown', e => { if (e.ctrlKey && e.shiftKey && (e.key === 'M' || e.key === 'm')) { e.preventDefault(); this.open(); } });
+  }
+};
+
+/* ===== Fundos temáticos com IA (Nano Banana, pela chave do Gemini) ===== */
+const ImageAI = {
+  MODELS: ['gemini-3.1-flash-image', 'gemini-3.1-flash-image-preview', 'gemini-2.5-flash-image'],
+  model() { return AI.cfg().imageModel; },
+  MOODS: { noite: 'noturna, tons de roxo e violeta profundos, luz suave e misteriosa', aurora: 'amanhecer, tons quentes de rosa, laranja e dourado, esperança', oceano: 'águas profundas, azul e verde-água, serenidade', brasa: 'fogo e brasas, laranja e vermelho intensos sobre fundo escuro', pedra: 'sóbria, grafite e dourado discreto, elegante', papel: 'clara e luminosa, tons creme e bege, minimalista', foto: 'cinematográfica e atmosférica' },
+  prompt(o, s) {
+    const mood = this.MOODS[o.lastMood || 'noite'];
+    return `Imagem de fundo para o telão de uma pregação cristã com o tema "${o.title || s.title}"${o.sub ? ` (${o.sub})` : ''}. ` +
+      `Cena simbólica e reverente que transmita a mensagem do tema, atmosfera ${mood}. Fotografia cinematográfica, profundidade de campo, luz dramática suave, alta qualidade. ` +
+      `IMPORTANTE: sem nenhum texto, letra, número ou logotipo na imagem. Deixe a área central mais limpa e escura para receber o título por cima. Sem rostos em close.`;
+  },
+  async generate(prompt, aspect) {
+    const c = AI.cfg(); if (!c.geminiKey) throw new Error('Configure a chave do Gemini em ✦ Revisar › ⚙ Chaves e modelos.');
+    const ar = { '16:9': '16:9', '4:3': '4:3', '1:1': '1:1', '9:16': '9:16' }[aspect] || '16:9';
+    const models = [...new Set([this.model(), ...this.MODELS].filter(Boolean))]; let last = '';
+    for (const model of models) {
+      for (const big of model.includes('2.5') ? [false] : [true, false]) {
+        const body = { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { responseModalities: ['IMAGE'], imageConfig: { aspectRatio: ar, ...(big ? { imageSize: '2K' } : {}) } } };
+        let r, j = {};
+        try { r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, { method: 'POST', headers: { 'x-goog-api-key': c.geminiKey, 'content-type': 'application/json' }, body: JSON.stringify(body) }); j = await r.json().catch(() => ({})); }
+        catch (e) { throw new Error('Sem conexão com o Google.'); }
+        if (r.ok) {
+          const part = (j.candidates?.[0]?.content?.parts || []).find(p => p.inlineData || p.inline_data);
+          const d = part && (part.inlineData || part.inline_data);
+          if (d) { this.lastModel = model; return `data:${d.mimeType || d.mime_type || 'image/png'};base64,${d.data}`; }
+          last = j.candidates?.[0]?.finishReason === 'SAFETY' || j.promptFeedback?.blockReason ? 'O Google recusou este pedido (filtro de segurança). Mude a descrição.' : 'A IA não devolveu imagem.'; break;
+        }
+        last = j.error?.message || ('erro ' + r.status);
+        if (r.status === 404) break;                // modelo não existe nesta conta: próximo
+        if (r.status === 400 && big) continue;      // talvez não aceite 2K: tenta sem
+        if (r.status === 429 && /limit:\s*0|free/i.test(last)) throw new Error('Geração de imagens não está no plano gratuito. Ative o faturamento do projeto no AI Studio.');
+        if (r.status === 401 || r.status === 403) throw new Error(last);
+        break;
+      }
+    }
+    throw new Error(last || 'Não foi possível gerar a imagem.');
   }
 };
