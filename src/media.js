@@ -630,7 +630,7 @@ const Spell = {
 
 /* ===== Larguras dos painéis de cadernos e páginas (por aparelho) ===== */
 const PaneResize = {
-  LIM: { 'nb-pane': [150, 420, '--nb-w'], 'pages-pane': [200, 560, '--pages-w'] },
+  LIM: { 'nb-col': [160, 400, '--nbcol-w'], 'nb-pane': [150, 420, '--nb-w'], 'pages-pane': [200, 560, '--pages-w'] },
   load() { try { return JSON.parse(localStorage.getItem('ss-panes') || '{}'); } catch (e) { return {}; } },
   save(v) { try { localStorage.setItem('ss-panes', JSON.stringify(v)); } catch (e) { } },
   init() {

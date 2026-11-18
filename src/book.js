@@ -768,3 +768,61 @@ Seja específico e honesto; não elogie à toa; notas de 0 a 10.`;
     L('Capítulo a capítulo', r.capitulos, x => el('span', {}, el('span', { class: 'rv-nota n' + Math.round((+x.nota || 0) / 2.5), text: x.nota ?? '–' }), ' ', el('b', { text: x.cap + ': ' }), x.comentario || ''));
   }
 };
+
+/* ===================== LISTA DE CADERNOS (como no OneNote) =====================
+   Fixada: vira uma coluna à esquerda. Solta: abre como menu flutuante. */
+const NbPanel = {
+  pinned() { try { return localStorage.getItem('ss-nb-pin') === '1'; } catch (e) { return false; } },
+  setPinned(v) { try { localStorage.setItem('ss-nb-pin', v ? '1' : '0'); } catch (e) { } document.body.classList.toggle('nb-pinned', v); this.close(); this.render(); },
+  switchTo(id) {
+    const m = App.meta; m.currentNb = id; const sec = m.sections.find(s => s.nb === id); m.currentSec = sec?.id || null;
+    App.saveMeta(); App.renderNav(); const first = sec && App.sectionSermons(sec.id)[0]; if (first) App.open(first.id);
+    if (!this.pinned()) this.close();
+  },
+  init() {
+    const head = $('#nb-pane .pane-head'); if (!head || $('#nb-btn')) return;
+    $('#nb-select').hidden = true;
+    this.btn = el('button', { id: 'nb-btn', class: 'nb-btn', title: 'Cadernos', onclick: e => { e.stopPropagation(); this.pinned() && innerWidth > 980 ? this.col.querySelector('.nbc-row.on')?.scrollIntoView({ block: 'nearest' }) : this.toggle(); } });
+    head.prepend(this.btn);
+    this.col = el('nav', { id: 'nb-col', 'aria-label': 'Cadernos' }); $('#nb-pane').before(this.col);
+    document.body.classList.toggle('nb-pinned', this.pinned());
+    document.addEventListener('pointerdown', e => { if (this.col.classList.contains('fly') && !this.col.contains(e.target) && !this.btn.contains(e.target)) this.close(); }, true);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') this.close(); });
+    this.render();
+  },
+  toggle() { this.col.classList.contains('fly') ? this.close() : this.openFly(); },
+  openFly() {
+    this.render(); const r = this.btn.getBoundingClientRect();
+    this.col.classList.add('fly'); this.col.style.top = (r.bottom + 4) + 'px'; this.col.style.left = Math.max(6, r.left) + 'px';
+  },
+  close() { this.col?.classList.remove('fly'); },
+  render() {
+    if (!this.col) return;
+    const m = App.meta, cur = m.notebooks.find(n => n.id === m.currentNb);
+    this.btn.innerHTML = ''; this.btn.append(el('span', { class: 'nb-ic', text: Book.isNb(cur) ? '📖' : '🎤' }), el('span', { class: 'nb-name', text: cur?.name || 'Cadernos' }), el('span', { class: 'nb-car', text: this.pinned() ? '' : '▾' }));
+    const pin = this.pinned();
+    this.col.innerHTML = '';
+    this.col.append(el('div', { class: 'nbc-head' }, el('b', { text: 'Cadernos' }),
+      el('button', { class: 'icon-btn sm', title: 'Novo caderno', text: '＋', onclick: () => { this.close(); $('#nb-add').click(); } }),
+      el('button', { class: 'icon-btn sm nbc-pin' + (pin ? ' on' : ''), title: pin ? 'Desafixar (vira menu flutuante)' : 'Fixar como coluna', text: '📌', onclick: () => this.setPinned(!pin) })));
+    const count = nb => { const secs = new Set(m.sections.filter(s => s.nb === nb.id).map(s => s.id)); let n = 0; for (const s of App.sermons.values()) if (secs.has(s.sec)) n++; return n; };
+    const group = (title, list) => {
+      if (!list.length) return;
+      this.col.append(el('div', { class: 'nbc-group', text: title }));
+      for (const nb of list) {
+        const row = el('div', { class: 'nbc-row' + (nb.id === m.currentNb ? ' on' : ''), draggable: 'true', 'data-id': nb.id, title: nb.name, onclick: () => this.switchTo(nb.id) },
+          el('span', { class: 'nb-ic', text: Book.isNb(nb) ? '📖' : '🎤' }), el('span', { class: 'nbc-name', text: nb.name }), el('span', { class: 'nbc-n', text: count(nb) }),
+          el('button', { class: 'icon-btn sm', title: 'Opções do caderno', text: '⋯', onclick: e => { e.stopPropagation(); if (nb.id !== m.currentNb) this.switchTo(nb.id); this.close(); App.notebookMenu(); } }));
+        row.addEventListener('dragstart', e => { this.drag = nb.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', nb.id); });
+        row.addEventListener('dragover', e => { if (!this.drag || this.drag === nb.id) return; e.preventDefault(); const r = row.getBoundingClientRect(); row.classList.toggle('d-after', e.clientY > r.top + r.height / 2); row.classList.toggle('d-before', e.clientY <= r.top + r.height / 2); });
+        row.addEventListener('dragleave', () => row.classList.remove('d-after', 'd-before'));
+        row.addEventListener('drop', e => { e.preventDefault(); const after = row.classList.contains('d-after'); row.classList.remove('d-after', 'd-before');
+          const a = m.notebooks.findIndex(x => x.id === this.drag); if (a < 0) return; const [x] = m.notebooks.splice(a, 1); let i = m.notebooks.findIndex(y => y.id === nb.id); if (after) i++; m.notebooks.splice(i, 0, x); this.drag = null; App.saveMeta(); App.renderNav(); });
+        row.addEventListener('dragend', () => { this.drag = null; });
+        bindContextMenu(row, () => { if (nb.id !== m.currentNb) this.switchTo(nb.id); this.close(); App.notebookMenu(); });
+        this.col.append(row);
+      }
+    };
+    group('Sermões', m.notebooks.filter(n => !Book.isNb(n))); group('Livros', m.notebooks.filter(n => Book.isNb(n)));
+  }
+};

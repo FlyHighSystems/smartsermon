@@ -555,3 +555,23 @@ body.in-book #nb-pane{background:color-mix(in srgb,#8e562e 7%,var(--panel2))}bod
 .fb-col{min-width:24px;font-weight:800;font-family:inherit}
 .fb-sep{width:1px;height:22px;background:var(--line);margin:0 3px;flex-shrink:0}
 @media print{.fbar{display:none}}
+
+/* Lista de cadernos: coluna fixa ou menu flutuante */
+.nb-btn{flex:1;min-width:0;display:flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--input,var(--panel));border-radius:8px;padding:6px 8px;cursor:pointer;color:inherit;font:inherit;font-weight:600;text-align:left}
+.nb-btn:hover{border-color:var(--accent)}.nb-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nb-car{color:var(--muted);font-size:12px}
+body.in-book .nb-btn{border-color:#8e562e}
+#nb-col{display:none;width:var(--nbcol-w,220px);flex-shrink:0;flex-direction:column;background:color-mix(in srgb,var(--panel2) 70%,var(--bg,#000) 30%);border-right:1px solid var(--line);overflow:auto;position:relative}
+body.nb-pinned #nb-col{display:flex}
+body.nb-pinned .nb-car{display:none}
+#nb-col.fly{display:flex;position:fixed;z-index:950;width:280px;max-height:70vh;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 36px rgba(0,0,0,.25);background:var(--panel)}
+#nb-col.fly .pane-grip{display:none}
+.nav-collapsed #nb-col:not(.fly){display:none}
+.nbc-head{display:flex;align-items:center;gap:4px;padding:10px 8px 6px 12px;position:sticky;top:0;background:inherit;z-index:1}.nbc-head b{flex:1}
+.nbc-pin{filter:grayscale(1);opacity:.6}.nbc-pin.on{filter:none;opacity:1}
+.nbc-group{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:10px 12px 4px}
+.nbc-row{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 12px;margin:1px 6px;border-radius:8px;cursor:pointer;min-height:38px}
+.nbc-row:hover{background:var(--panel2)}.nbc-row.on{background:color-mix(in srgb,var(--accent) 16%,transparent);font-weight:600}
+.nbc-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nbc-n{font-size:12px;color:var(--muted)}
+.nbc-row .icon-btn{opacity:0}.nbc-row:hover .icon-btn,.nbc-row.on .icon-btn{opacity:1}
+.nbc-row.d-before{box-shadow:inset 0 2px 0 var(--accent)}.nbc-row.d-after{box-shadow:inset 0 -2px 0 var(--accent)}
+@media (max-width:980px){body.nb-pinned #nb-col:not(.fly){display:none}body.nb-pinned .nb-car{display:inline}}
