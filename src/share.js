@@ -24,12 +24,13 @@ const Share = {
     let n = 0;
     for (const b of s.blocks) {
       const t = wa(b.html);
-      if (b.type === 'point') { out.push(`\n*${++n}. ${htmlToText(b.html)}*`); continue; }
+      const mk = Marks.emoji(b) ? Marks.emoji(b) + ' ' : '';
+      if (b.type === 'point') { out.push(`\n${mk}*${++n}. ${htmlToText(b.html)}*`); continue; }
       if (b.type === 'verse') { if (!t && !b.ref) continue; if (!t) { out.push(`📖 *${b.ref}*`); continue; } out.push(t.split('\n').map(l => '> _' + l.replace(/_/g, '') + '_').join('\n') + (b.ref ? `\n> — *${b.ref}*${b.version ? ' (' + (Bible.info(b.version)?.short || '') + ')' : b.verLabel ? ' (' + b.verLabel + ')' : ''}` : '')); continue; }
       if (b.type === 'ink' || b.type === 'image') continue;
       if (!t) continue;
-      if (isCallout(b.type)) { out.push(`*${(BLOCK_TYPES[b.type]?.label || '').toUpperCase()}:* ${t}`); continue; }
-      out.push(t);
+      if (isCallout(b.type)) { out.push(`${mk}*${(BLOCK_TYPES[b.type]?.label || '').toUpperCase()}:* ${t}`); continue; }
+      out.push(mk + t);
     }
     return out.join('\n').replace(/\n{3,}/g, '\n\n');
   },
@@ -42,12 +43,12 @@ const Share = {
     let n = 0;
     for (const b of s.blocks) {
       if (b.type !== 'image' && b.type !== 'ink' && !htmlToText(b.html) && !b.ref) continue;
-      if (b.type === 'point') box.append(el('h2', { text: `${++n}. ${htmlToText(b.html)}` }));
-      else if (b.type === 'verse') box.append(el('blockquote', { class: 'verse' }, el('div', { class: 'ref', text: (b.ref || '') + (b.version ? ' · ' + (Bible.info(b.version)?.short || '') : b.verLabel ? ' · ' + b.verLabel : '') }), el('div', { html: sanitizeHTML(b.html || '') })));
-      else if (isCallout(b.type)) box.append(el('div', { class: 'call', 'data-c': blockColor(b.type) }, el('small', { text: BLOCK_TYPES[b.type]?.label || '' }), el('div', { html: sanitizeHTML(b.html || '') })));
-      else if (b.type === 'image' && b.src) box.append(el('figure', {}, el('img', { src: b.src, alt: '' }), b.html ? el('figcaption', { text: htmlToText(b.html) }) : null));
-      else if (b.type === 'ink' && b.ink?.strokes?.length && inkAsImage) box.append(el('img', { class: 'ink', src: inkToDataURL({ hr: inkContentHR(b.ink), strokes: b.ink.strokes }, 1000, '#ffffff'), alt: 'Desenho' }));
-      else box.append(el('div', { class: 'text', html: sanitizeHTML(b.html || '') }));
+      if (b.type === 'point') box.append(Marks.tag(el('h2', { text: `${++n}. ${htmlToText(b.html)}` }), b, true));
+      else if (b.type === 'verse') box.append(Marks.tag(el('blockquote', { class: 'verse' }, el('div', { class: 'ref', text: (b.ref || '') + (b.version ? ' · ' + (Bible.info(b.version)?.short || '') : b.verLabel ? ' · ' + b.verLabel : '') }), el('div', { html: sanitizeHTML(b.html || '') })), b, true));
+      else if (isCallout(b.type)) box.append(Marks.tag(el('div', { class: 'call', 'data-c': blockColor(b.type) }, el('small', { text: BLOCK_TYPES[b.type]?.label || '' }), el('div', { html: sanitizeHTML(b.html || '') })), b, true));
+      else if (b.type === 'image' && b.src) box.append(Marks.tag(el('figure', {}, el('img', { src: b.src, alt: '' }), b.html ? el('figcaption', { text: htmlToText(b.html) }) : null), b, true));
+      else if (b.type === 'ink' && b.ink?.strokes?.length && inkAsImage) box.append(Marks.tag(el('img', { class: 'ink', src: inkToDataURL({ hr: inkContentHR(b.ink), strokes: b.ink.strokes }, 1000, '#ffffff'), alt: 'Desenho' }), b, true));
+      else box.append(Marks.tag(el('div', { class: 'text', html: sanitizeHTML(b.html || '') }), b, true));
     }
     return box.innerHTML;
   },

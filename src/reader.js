@@ -57,7 +57,7 @@ const Reader = {
       C.append(el('h1', { class: 'r-h1', text: this.s.title }));
       if (this.s.passage) C.append(el('div', { class: 'r-passage', text: this.s.passage }));
     }
-    for (const b of list) C.append(this.blockEl(b, numbers.get(b.id)));
+    for (const b of list) { const n = this.blockEl(b, numbers.get(b.id)); const ms = Marks.strip(b, 30); if (ms && n.prepend) { ms.classList.add('r-marks'); n.prepend(ms); } C.append(n); }
     if (st.mode === 'scroll') C.append(el('div', { class: 'r-end', text: '— fim —' }));
     linkifyRefs(C);
     $('#r-scroll').scrollTop = 0; this.pos = 0;

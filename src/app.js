@@ -149,7 +149,7 @@ const App = {
     Search.init();
     $('#page-select').onclick = () => { this.selMode = !this.selMode; this.sel = new Set(); this.renderPages(); };
     $('#toggle-nav').onclick = () => document.body.classList.toggle('nav-collapsed');
-    EditorView.init();
+    EditorView.init(); Marks.init();
     $('#editor').addEventListener('pointerdown', () => { if (window.innerWidth < 980) document.body.classList.add('nav-collapsed'); });
     if (window.innerWidth < 980) document.body.classList.add('nav-collapsed');
   },
@@ -364,6 +364,7 @@ const App = {
           <button class="btn sm ai-btn" id="s-review" title="Revisar com IA (Claude e Gemini) e conferir referências">✦ Revisar</button>
           <button class="btn sm" id="s-report" title="Pregações registradas e relatório pós-culto">📊 Pregações${(s.preached || []).length ? ' (' + s.preached.length + ')' : ''}</button>
           <button class="btn sm" id="s-share" title="Copiar para WhatsApp ou criar link de leitura">↗ Compartilhar</button>
+          <button class="btn sm" id="s-slide" title="Gerar imagem com o título para o telão ou redes sociais">🖼 Telão</button>
           <button class="btn sm" id="s-move" title="Mover ou copiar para outra seção">⇢ Mover/Copiar</button>
           <button class="btn sm" id="s-dup" title="Duplicar">Duplicar</button>
           <button class="btn sm danger-text" id="s-del" title="Excluir">Excluir</button>
@@ -383,6 +384,7 @@ const App = {
     $('#s-sec').onchange = e => { s.sec = e.target.value; const sec = this.meta.sections.find(x => x.id === s.sec); this.meta.currentSec = sec.id; this.meta.currentNb = sec.nb; this.touch(); this.saveMeta(); this.renderNav(); };
     $('#s-dup').onclick = () => this.duplicateSermon();
     $('#s-share').onclick = () => { this.flush(); Share.open(s); };
+    $('#s-slide').onclick = () => { this.flush(); Slide.open(s); };
     $('#s-move').onclick = async () => {
       const r = await SectionPicker.pick(`“${s.title}”`, true); if (r) this.moveSermons([s.id], r.sec, r.copy);
     };
@@ -413,8 +415,10 @@ const App = {
     const tools = el('div', { class: 'b-tools' },
       el('button', { class: 'icon-btn sm', title: 'Mover para cima', text: '↑', onclick: () => this.moveBlock(b.id, -1) }),
       el('button', { class: 'icon-btn sm', title: 'Mover para baixo', text: '↓', onclick: () => this.moveBlock(b.id, 1) }),
+      el('button', { class: 'icon-btn sm', title: 'Marcações (Alt+1…9)', text: '🏷', onclick: e => Marks.menu(b, e.currentTarget) }),
       el('button', { class: 'icon-btn sm', title: 'Mudar tipo', text: '⇄', onclick: e => this.typeMenu(b, e.currentTarget) }),
       el('button', { class: 'icon-btn sm', title: 'Excluir bloco', text: '✕', onclick: () => this.removeBlock(b.id) }));
+    const mg = Marks.gutter(b); if (mg) { wrap.append(mg); wrap.classList.add('has-marks'); }
     wrap.append(el('div', { class: 'b-tag', text: T.label }), tools);
     if (b.type === 'ink') {
       const area = el('div', { class: 'ink-wrap' });

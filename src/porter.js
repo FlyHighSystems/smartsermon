@@ -533,12 +533,12 @@ const Porter = {
     let n = 0;
     for (const b of s.blocks) {
       if (b.type !== 'image' && b.type !== 'ink' && !htmlToText(b.html) && !b.ref) continue;
-      if (b.type === 'point') P.append(el('h2', { text: `${++n}. ${htmlToText(b.html)}` }));
-      else if (b.type === 'verse') P.append(el('blockquote', { class: 'p-verse' }, el('b', { text: (b.ref || '') + (b.version ? ' (' + (Bible.info(b.version)?.short || '') + ')' : '') }), el('div', { html: b.html || '' })));
-      else if (isCallout(b.type)) P.append(el('div', { class: 'p-call p-' + b.type, style: { borderColor: blockColor(b.type) } }, el('small', { text: BLOCK_TYPES[b.type]?.label || '', style: { color: blockColor(b.type) } }), el('div', { html: b.html || '' })));
-      else if (b.type === 'image') P.append(el('figure', {}, el('img', { src: b.src }), b.html ? el('figcaption', { html: b.html }) : null));
+      if (b.type === 'point') P.append(Marks.tag(el('h2', { text: `${++n}. ${htmlToText(b.html)}` }), b));
+      else if (b.type === 'verse') P.append(Marks.tag(el('blockquote', { class: 'p-verse' }, el('b', { text: (b.ref || '') + (b.version ? ' (' + (Bible.info(b.version)?.short || '') + ')' : '') }), el('div', { html: b.html || '' })), b));
+      else if (isCallout(b.type)) P.append(Marks.tag(el('div', { class: 'p-call p-' + b.type, style: { borderColor: blockColor(b.type) } }, el('small', { text: BLOCK_TYPES[b.type]?.label || '', style: { color: blockColor(b.type) } }), el('div', { html: b.html || '' })), b));
+      else if (b.type === 'image') P.append(Marks.tag(el('figure', {}, el('img', { src: b.src }), b.html ? el('figcaption', { html: b.html }) : null), b));
       else if (b.type === 'ink' && b.ink?.strokes?.length) { const v = { hr: inkContentHR(b.ink), strokes: b.ink.strokes }; P.append(el('img', { class: 'p-ink', src: inkToDataURL(v, 1400) })); }
-      else P.append(el('div', { class: 'p-text', html: b.html || '' }));
+      else P.append(Marks.tag(el('div', { class: 'p-text', html: b.html || '' }), b));
     }
     const old = document.title; document.title = safeName(s.title);
     setTimeout(() => { window.print(); document.title = old; }, 120);
