@@ -218,7 +218,7 @@ Notas de 0 a 10.`;
         el('div', { class: 'row-btns', style: { flexWrap: 'wrap', alignItems: 'center' } },
           el('label', { class: 'on-check' }, cl, ' Claude'), el('label', { class: 'on-check' }, gm, ' Gemini'),
           el('button', { class: 'btn link', text: '⚙ Chaves e modelos', onclick: () => AI.settings(() => { m.close(); this.open(s); }) })),
-        !AI.has() ? el('p', { class: 'on-log', text: 'Configure pelo menos uma chave (Claude ou Gemini) em ⚙ Chaves e modelos.' }) : null,
+        !AI.has() ? el('p', { class: 'on-log', text: 'Configure pelo menos uma chave (Claude ou Gemini) em ⚙ Chaves e modelos.' }) : '',
         el('p', { class: 'muted small', text: 'A checagem das referências bíblicas é feita pelo próprio app, sem IA, contra a Bíblia baixada.' }),
         el('div', { class: 'row-btns' },
           el('button', { class: 'btn primary', text: '✦ Revisar agora', onclick: async () => {
