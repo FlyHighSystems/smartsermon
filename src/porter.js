@@ -414,7 +414,7 @@ const Porter = {
       el('div', { class: 'imp-card' }, el('h4', { text: '1. Arquivo exportado do OneNote' }),
         el('p', { class: 'muted', html: 'Sem login e sem registro. No OneNote: <b>Arquivo › Exportar</b> › escolha <b>Página</b> ou <b>Seção</b> (uma seção inteira vira várias ministrações, uma por página) › formato <b>Documento do Word (*.docx)</b> ou <b>Arquivo da Web de Arquivo Único (*.mht)</b>. Depois selecione os arquivos abaixo — pode escolher vários de uma vez.' }),
         el('div', { class: 'row-btns' },
-          el('button', { class: 'btn primary', text: 'Escolher arquivos .docx / .mht / .html…', onclick: async () => { const fs = await pickFiles('.docx,.mht,.mhtml,.html,.htm', true); if (fs.length) { m.close(); this.importFiles(fs); } } }),
+          el('button', { class: 'btn primary', text: 'Escolher arquivos .onepkg / .docx / .mht…', onclick: async () => { const fs = await pickFiles('.onepkg,.docx,.mht,.mhtml,.html,.htm', true); if (fs.length) { m.close(); this.importFiles(fs); } } }),
           el('button', { class: 'btn', text: 'Importar caderno (várias seções)…', onclick: () => { m.close(); this.notebookImport(); } }))),
       el('div', { class: 'imp-card' }, el('h4', { text: '2. Copiar e colar' }), paste,
         el('button', { class: 'btn', text: 'Importar o conteúdo colado', onclick: () => { const items = htmlToItems(paste.innerHTML); if (!items.length) return UI.toast('Cole algo primeiro'); const r = itemsToSermon(items, 'Colado do OneNote'); App.newSermon({ title: r.title, blocks: r.blocks }); m.close(); } })),
@@ -433,13 +433,28 @@ const Porter = {
   /* Lê os arquivos e pergunta como organizar (caderno novo/atual, uma seção por arquivo, por ano…) */
   async importFiles(files, opts = {}) {
     const parsed = [];
-    UI.toast(files.length > 1 ? `Lendo ${files.length} arquivos…` : `Lendo ${files[0].name}…`);
+    /* pacotes do OneNote (.onepkg): caderno inteiro com as seções */
+    const pkgs = files.filter(f => /\.onepkg$/i.test(f.name)); files = files.filter(f => !/\.onepkg$/i.test(f.name));
+    if (pkgs.length) {
+      const log = el('p', { class: 'muted', text: 'Abrindo o pacote…' });
+      const pm = UI.modal({ title: 'Lendo o caderno do OneNote', body: el('div', {}, log, el('p', { class: 'muted small', text: 'Cadernos grandes podem levar alguns segundos.' })) });
+      for (const f of pkgs) {
+        try {
+          const secs = await OneNoteImport.package(new Uint8Array(await f.arrayBuffer()), nm => { log.textContent = 'Lendo a seção ' + nm.replace(/\.one$/i, '') + '…'; });
+          for (const s of secs) parsed.push({ base: (pkgs.length > 1 ? f.name.replace(/\.onepkg$/i, '') + ' › ' : '') + s.base, pkg: true,
+            pages: s.pages.map(p => ({ title: p.title, date: p.date, level: p.level, items: htmlToItems(p.html) })) });
+          opts.name ||= f.name.replace(/\.onepkg$/i, '');
+        } catch (e) { console.error(e); UI.toast(`Não consegui ler ${f.name}: ${e.message}`); }
+      }
+      pm.close(); opts.asNotebook = true;
+    }
+    if (files.length) UI.toast(files.length > 1 ? `Lendo ${files.length} arquivos…` : `Lendo ${files[0].name}…`);
     await new Promise(r => setTimeout(r, 30));
     for (const f of files) {
       try { const { pages, items } = await this.parseFile(f); parsed.push({ base: f.name.replace(/\.[^.]+$/, ''), pages: pages.length ? pages : [{ title: null, date: null, items }] }); }
       catch (e) { console.error(e); UI.toast(`Falha em ${f.name}: ${e.message}`); }
     }
-    parsed.sort((a, b) => a.base.localeCompare(b.base, 'pt-BR', { numeric: true }));
+    if (!parsed.some(x => x.pkg)) parsed.sort((a, b) => a.base.localeCompare(b.base, 'pt-BR', { numeric: true }));
     const total = parsed.reduce((n, x) => n + x.pages.length, 0);
     if (!total) return;
     // Uma página só: entra direto na seção aberta (o jeito mais rápido)
@@ -450,19 +465,19 @@ const Porter = {
   organize(parsed, opts) {
     const total = parsed.reduce((n, x) => n + x.pages.length, 0), multi = parsed.length > 1;
     const common = (() => { if (!multi) return parsed[0].base; let p = parsed[0].base; for (const x of parsed) while (p && !x.base.startsWith(p)) p = p.slice(0, -1); return p.replace(/[\s\-_–—·.]+$/, '').trim(); })();
-    const name = el('input', { class: 'inp', value: common || 'Caderno importado' });
+    const name = el('input', { class: 'inp', value: opts.name || common || 'Caderno importado' });
     const curNb = App.meta.notebooks.find(n => n.id === App.meta.currentNb);
     const destNew = el('input', { type: 'radio', name: 'imp-dest', checked: true }), destCur = el('input', { type: 'radio', name: 'imp-dest' });
     const group = el('select', { class: 'inp' },
       el('option', { value: 'one', text: 'Tudo numa seção' }), el('option', { value: 'year', text: 'Uma seção por ano' }));
     group.value = total > 60 ? 'year' : 'one';
     const body = el('div', { class: 'imp' },
-      el('p', { html: `<b>${total}</b> página(s) em <b>${parsed.length}</b> arquivo(s).` }),
+      el('p', { html: parsed.some(x => x.pkg) ? `<b>${total}</b> página(s) em <b>${parsed.length}</b> seção(ões) do OneNote.` : `<b>${total}</b> página(s) em <b>${parsed.length}</b> arquivo(s).` }),
       el('div', { class: 'imp-card' },
         el('label', { class: 'on-check' }, destNew, ' Criar um caderno novo chamado:'), name,
         el('label', { class: 'on-check', style: { marginTop: '8px' } }, destCur, ` Colocar no caderno aberto (${curNb?.name || ''})`)),
       multi
-        ? el('div', { class: 'imp-card' }, el('b', { text: 'Seções' }), el('p', { class: 'muted small', text: 'Cada arquivo vira uma seção:' }),
+        ? el('div', { class: 'imp-card' }, el('b', { text: 'Seções' }), el('p', { class: 'muted small', text: parsed.some(x => x.pkg) ? 'As seções do OneNote, na mesma ordem:' : 'Cada arquivo vira uma seção:' }),
             el('div', { class: 'imp-secs' }, parsed.map(x => el('span', { class: 'pill', text: `${x.base} · ${x.pages.length}` }))))
         : el('div', { class: 'imp-card' }, el('b', { text: 'Seções' }), group,
             total > 1 ? el('p', { class: 'muted small', html: 'O OneNote <b>não grava as seções</b> quando você exporta o caderno inteiro. Para manter as seções originais, exporte <b>cada seção</b> (Arquivo › Exportar › <b>Seção</b> › .mht) e selecione todos os arquivos juntos. Ou importe assim e use <b>☑ Selecionar</b> na lista de páginas para mover várias de uma vez.' }) : null));
@@ -473,9 +488,11 @@ const Porter = {
   applyImport(parsed, o) {
     const M = App.meta; let ok = 0, last = null;
     const newSec = (nb, nm) => { const sc = { id: uid(), nb, name: nm, color: SECTION_COLORS[M.sections.length % 10] }; M.sections.push(sc); return sc; };
+    const ord = {};
     const add = (pg, secId, fallback) => {
       const r = itemsToSermon(pg.items, pg.title || fallback || 'Sem título', !!pg.title);
-      const s = Object.assign(blankSermon(secId), { title: r.title, blocks: r.blocks, duration: 0 });
+      const s = Object.assign(blankSermon(secId), { title: r.title, blocks: r.blocks.length ? r.blocks : [{ id: uid(), type: 'text', html: '' }], duration: 0 });
+      if (pg.level != null) { s.level = pg.level; s.order = ord[secId] = (ord[secId] ?? -1) + 1; } /* .onepkg: mantém a ordem e as subpáginas do OneNote */
       s.date = pg.date || (o.dest === 'here' ? s.date : '');
       App.sermons.set(s.id, s); App.touch(s); last = s; ok++;
     };
@@ -504,10 +521,13 @@ const Porter = {
   },
   async notebookImport() {
     UI.modal({ title: 'Importar caderno do OneNote', body: el('div', {},
-      el('p', { html: 'Para manter as <b>seções</b>, exporte cada seção do caderno no OneNote:' }),
+      el('div', { class: 'imp-card hl' }, el('h4', { text: '⭐ Mais fácil: o caderno inteiro (.onepkg)' }),
+        el('p', { html: 'No OneNote para Windows: <b>Arquivo › Exportar</b> › Exportar atual: <b>Bloco de Anotações</b> › formato <b>Pacote do OneNote (*.onepkg)</b>. Traz <b>todas as seções</b>, a ordem das páginas, as subpáginas, as datas, tabelas e imagens.' }),
+        el('p', { class: 'muted small', text: 'Desenhos à mão e anexos não vêm (aparece um aviso no lugar). Cadernos protegidos por senha não abrem.' })),
+      el('p', { html: 'Ou, seção por seção:' }),
       el('ol', { class: 'steps', html: '<li>No OneNote, clique na seção (a aba colorida).</li><li><b>Arquivo › Exportar</b> › Exportar atual: <b>Seção</b> › formato <b>Página da Web de Arquivo Único (*.mht)</b> ou <b>Documento do Word</b> › Exportar.</li><li>Repita para cada seção, salvando todas na mesma pasta.</li><li>Clique abaixo e selecione <b>todos os arquivos</b> de uma vez (Ctrl+A na pasta).</li>' }),
       el('p', { class: 'muted small', text: 'Cada arquivo vira uma seção, com o nome do arquivo, dentro de um caderno novo. Também funciona com o caderno inteiro em um arquivo só, mas aí o OneNote não informa as seções.' })),
-      actions: [{ label: 'Cancelar' }, { label: 'Escolher arquivos…', primary: true, onClick: async () => { const fs = await pickFiles('.docx,.mht,.mhtml,.html,.htm', true); if (fs.length) this.importFiles(fs, { asNotebook: true }); } }] });
+      actions: [{ label: 'Cancelar' }, { label: 'Escolher arquivos…', primary: true, onClick: async () => { const fs = await pickFiles('.onepkg,.docx,.mht,.mhtml,.html,.htm', true); if (fs.length) this.importFiles(fs, { asNotebook: true }); } }] });
   },
   exportDialog() {
     const s = App.cur;
