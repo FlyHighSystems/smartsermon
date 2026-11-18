@@ -3738,7 +3738,7 @@ const CloudUI = {
 const AI = {
   cfg() {
     let c = {}; try { c = JSON.parse(localStorage.getItem('ss-ai') || '{}'); } catch (e) { }
-    return { anthropicKey: c.anthropicKey || '', geminiKey: c.geminiKey || '', claudeModel: c.claudeModel || 'claude-sonnet-5-5', geminiModel: c.geminiModel || 'gemini-flash-latest', church: c.church ?? 'Igreja evangélica; cultos de domingo e células; público misto (membros e visitantes).', syncKeys: c.syncKeys !== false, at: c.at || 0, imageModel: c.imageModel || '', hordeKey: c.hordeKey || '' };
+    return { anthropicKey: c.anthropicKey || '', geminiKey: c.geminiKey || '', claudeModel: c.claudeModel || 'claude-sonnet-5-5', geminiModel: c.geminiModel || 'gemini-flash-latest', church: c.church ?? 'Igreja evangélica; cultos de domingo e células; público misto (membros e visitantes).', syncKeys: c.syncKeys !== false, at: c.at || 0, imageModel: c.imageModel || '', hordeKey: c.hordeKey || '', pollKey: c.pollKey || '' };
   },
   /* fromCloud: veio de outro aparelho (mantém o horário original e não reenvia) */
   save(c, { fromCloud = false } = {}) {
@@ -3749,12 +3749,12 @@ const AI = {
   /* O que vai para a conta: com as chaves (padrão) ou só modelos e contexto */
   cloudPayload() {
     const c = this.cfg(); if (!c.at) return null;
-    return c.syncKeys ? c : { ...c, anthropicKey: '', geminiKey: '', hordeKey: '' };
+    return c.syncKeys ? c : { ...c, anthropicKey: '', geminiKey: '', hordeKey: '', pollKey: '' };
   },
   fromCloud(r) {
     if (!r || !r.at || r.at <= this.cfg().at) return false;
     const loc = this.cfg();
-    this.save(r.syncKeys === false ? { ...r, anthropicKey: loc.anthropicKey, geminiKey: loc.geminiKey, hordeKey: loc.hordeKey } : r, { fromCloud: true });
+    this.save(r.syncKeys === false ? { ...r, anthropicKey: loc.anthropicKey, geminiKey: loc.geminiKey, hordeKey: loc.hordeKey, pollKey: loc.pollKey } : r, { fromCloud: true });
     return true;
   },
   has(p) { const c = this.cfg(); return p === 'claude' ? !!c.anthropicKey : p === 'gemini' ? !!c.geminiKey : !!(c.anthropicKey || c.geminiKey); },
@@ -3833,11 +3833,11 @@ const AI = {
       el('button', { class: 'btn sm', type: 'button', title: 'Mostrar/ocultar', text: '👁', onclick: () => { inp.type = inp.type === 'password' ? 'text' : 'password'; } }),
       el('button', { class: 'btn sm', type: 'button', title: 'Apagar e colar uma nova', text: 'Trocar', onclick: () => { inp.value = ''; inp.type = 'text'; inp.focus(); } }));
     ak.style.flex = gk.style.flex = '1';
-    const cm = el('input', { class: 'inp', value: c.claudeModel }), gm = el('input', { class: 'inp', value: c.geminiModel }), im = el('input', { class: 'inp', value: c.imageModel, placeholder: 'automático (Nano Banana 2 → Nano Banana)' }), hk = el('input', { class: 'inp', type: 'password', value: c.hordeKey, placeholder: 'opcional — sem chave usa a anônima (fila mais lenta)', autocomplete: 'off' });
+    const cm = el('input', { class: 'inp', value: c.claudeModel }), gm = el('input', { class: 'inp', value: c.geminiModel }), im = el('input', { class: 'inp', value: c.imageModel, placeholder: 'automático (Nano Banana 2 → Nano Banana)' }), hk = el('input', { class: 'inp', type: 'password', value: c.hordeKey, placeholder: 'opcional — sem chave usa a anônima (fila mais lenta)', autocomplete: 'off' }), pk = el('input', { class: 'inp', type: 'password', value: c.pollKey, placeholder: 'opcional — pk_… (sem chave: ~1 imagem a cada 15 s)', autocomplete: 'off' });
     const ch = el('textarea', { class: 'inp', rows: 2 }); ch.value = c.church;
     const sk = el('input', { type: 'checkbox', checked: c.syncKeys });
     const out = el('p', { class: 'small' });
-    const val = () => ({ anthropicKey: ak.value.trim(), geminiKey: gk.value.trim(), claudeModel: cm.value.trim() || 'claude-sonnet-5-5', geminiModel: gm.value.trim() || 'gemini-flash-latest', church: ch.value.trim(), syncKeys: sk.checked, imageModel: im.value.trim(), hordeKey: hk.value.trim() });
+    const val = () => ({ anthropicKey: ak.value.trim(), geminiKey: gk.value.trim(), claudeModel: cm.value.trim() || 'claude-sonnet-5-5', geminiModel: gm.value.trim() || 'gemini-flash-latest', church: ch.value.trim(), syncKeys: sk.checked, imageModel: im.value.trim(), hordeKey: hk.value.trim(), pollKey: pk.value.trim() });
     const body = el('div', { class: 'ai-set' },
       el('p', { class: 'muted', html: 'As chamadas vão direto daqui para a Anthropic e o Google. Cada análise custa centavos (cobrança na sua conta de cada serviço). Você pode usar só uma das duas.' }),
       el('label', { class: 'lbl', text: 'Chave da API do Claude (console.anthropic.com › API Keys)' }), keyRow(ak),
@@ -3847,6 +3847,7 @@ const AI = {
         el('label', { class: 'lbl', text: 'Modelo do Gemini' }), gm,
         el('label', { class: 'lbl', text: 'Modelo de imagem (fundos do telão)' }), im,
         el('label', { class: 'lbl', text: 'Chave do AI Horde (grátis em aihorde.net/register — dá prioridade na fila)' }), hk,
+        el('label', { class: 'lbl', text: 'Chave do Pollinations (grátis em enter.pollinations.ai — use a publicável pk_…)' }), pk,
         el('label', { class: 'lbl', text: 'Contexto da sua igreja (ajuda a IA a calibrar a revisão)' }), ch),
       el('label', { class: 'lbl', style: { display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 'normal' } }, sk,
         el('span', { html: 'Guardar as chaves na minha conta e usar em <b>todos os meus aparelhos</b> (precisa estar logado na nuvem). Desmarcado: ficam só neste aparelho.' })),
@@ -4665,21 +4666,21 @@ const Slide = {
     const genOut = el('span', { class: 'muted small' });
     let cancel = null;
     const genBtn = el('button', { class: 'btn sm primary', text: '✨ Gerar fundo com IA', onclick: async () => {
-      genBtn.disabled = true; const horde = ImageAI.provider() === 'horde';
-      genOut.textContent = horde ? 'Enviando para a fila do AI Horde…' : 'Gerando… (10–30 s)';
+      genBtn.disabled = true; const pv = ImageAI.provider(), horde = pv === 'horde';
+      genOut.textContent = horde ? 'Enviando para a fila do AI Horde…' : pv === 'pollinations' ? 'Gerando no Pollinations… (10–60 s)' : 'Gerando… (10–30 s)';
       const ctl = { cancelled: false }; cancel = ctl; cancelBtn.hidden = !horde;
       try {
-        const url = horde ? await Horde.generate(prompt.value, o.fmt, { ctl, progress: t => { genOut.textContent = t; } }) : await ImageAI.generate(prompt.value, o.fmt);
+        const url = horde ? await Horde.generate(prompt.value, o.fmt, { ctl, progress: t => { genOut.textContent = t; } }) : pv === 'pollinations' ? await Pollinations.generate(prompt.value, o.fmt) : await ImageAI.generate(prompt.value, o.fmt);
         o.photo = url; (Slide.gen ||= []).unshift(url); addThumb(url, true);
-        genOut.textContent = 'Pronto ✓ (' + (horde ? 'AI Horde · ' + (Horde.lastModel || '') : ImageAI.lastModel) + ') — gere de novo para outras opções.'; redraw();
+        genOut.textContent = 'Pronto ✓ (' + (horde ? 'AI Horde · ' + (Horde.lastModel || '') : pv === 'pollinations' ? 'Pollinations · ' + Pollinations.lastModel : ImageAI.lastModel) + ') — gere de novo para outras opções.'; redraw();
       } catch (e) { genOut.textContent = e.message; } finally { genBtn.disabled = false; cancelBtn.hidden = true; cancel = null; } } });
     const cancelBtn = el('button', { class: 'btn sm', text: 'Cancelar', hidden: true, onclick: () => { if (cancel) cancel.cancelled = true; } });
     const provChips = el('div', { class: 'sl-chips' });
-    const paintProv = () => { provChips.innerHTML = ''; for (const [v, l, t] of [['gemini', 'Nano Banana (Gemini)', 'Rápido e de alta qualidade; precisa de faturamento no Google'], ['horde', 'AI Horde (grátis)', 'Gratuito e comunitário (Stable Diffusion); pode demorar alguns minutos']])
+    const paintProv = () => { provChips.innerHTML = ''; for (const [v, l, t] of [['gemini', 'Nano Banana (Gemini)', 'Rápido e de alta qualidade; precisa de faturamento no Google'], ['pollinations', 'Pollinations (grátis)', 'Gratuito e rápido (Flux); sem chave tem limite de 1 imagem a cada ~15 s'], ['horde', 'AI Horde (grátis)', 'Gratuito e comunitário (Stable Diffusion); pode demorar alguns minutos']])
       provChips.append(el('button', { class: 'chip' + (ImageAI.provider() === v ? ' on' : ''), text: l, title: t, onclick: () => { ImageAI.setProvider(v); paintProv(); resetPrompt(); } })); };
     paintProv();
     const resetPrompt = async () => {
-      if (ImageAI.provider() !== 'horde') { prompt.value = ImageAI.prompt(o, s); return; }
+      if (ImageAI.provider() === 'gemini') { prompt.value = ImageAI.prompt(o, s); return; }
       prompt.value = Horde.template(o, s);
       if (AI.has()) { const before = prompt.value; genOut.textContent = 'Escrevendo a descrição em inglês com a IA…';
         try { const t = await Horde.smartPrompt(o, s); if (prompt.value === before && t) prompt.value = t; genOut.textContent = ''; } catch (e) { genOut.textContent = ''; } }
@@ -4916,6 +4917,35 @@ const Horde = {
       if (ctl.cancelled || /Cancelado|demorou/.test(e.message)) this.req('/generate/status/' + id, { method: 'DELETE' }).catch(() => { });
       throw e;
     }
+  }
+};
+
+/* ===== Pollinations.ai: gratuito (Flux). Sem chave usa o endpoint aberto (limitado);
+   com chave publicável (pk_…) do enter.pollinations.ai usa o gateway novo. ===== */
+const Pollinations = {
+  SIZES: { '16:9': [1344, 768], '4:3': [1152, 864], '1:1': [1024, 1024], '9:16': [768, 1344] },
+  key() { return AI.cfg().pollKey || ''; },
+  url(prompt, fmt, seed) {
+    const [w, h] = this.SIZES[fmt] || this.SIZES['16:9'];
+    const p = encodeURIComponent(prompt + ', no text, no letters, no watermark');
+    const q = new URLSearchParams({ model: 'flux', width: w, height: h, seed, nologo: 'true', safe: 'true', private: 'true', enhance: 'false', referrer: 'smartsermon' });
+    const k = this.key();
+    if (k) { q.set('key', k); return `https://gen.pollinations.ai/image/${p}?${q}`; }
+    return `https://image.pollinations.ai/prompt/${p}?${q}`;
+  },
+  async generate(prompt, fmt) {
+    const seed = Math.floor(Math.random() * 1e9);
+    let r;
+    try { r = await fetch(this.url(prompt, fmt, seed)); }
+    catch (e) { throw new Error('Sem conexão com o Pollinations (ou o serviço bloqueou o acesso). Tente de novo em instantes.'); }
+    if (r.status === 429) throw new Error('Pollinations: limite gratuito — espere uns 15 segundos' + (this.key() ? '.' : ' ou cadastre uma chave grátis em enter.pollinations.ai.'));
+    if (r.status === 401 || r.status === 403) throw new Error('Pollinations recusou a chave. Confira em ⚙ Chaves e modelos.');
+    if (r.status === 402) throw new Error('Pollinations: sem saldo (pollen) na sua conta para este modelo.');
+    if (!r.ok) throw new Error('Pollinations: erro ' + r.status + '. Tente de novo.');
+    const b = await r.blob();
+    if (!/^image\//.test(b.type)) throw new Error('Pollinations não devolveu imagem. Tente de novo.');
+    this.lastModel = 'Flux';
+    return await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(b); });
   }
 };
 

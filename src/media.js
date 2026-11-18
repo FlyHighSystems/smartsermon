@@ -189,21 +189,21 @@ const Slide = {
     const genOut = el('span', { class: 'muted small' });
     let cancel = null;
     const genBtn = el('button', { class: 'btn sm primary', text: '✨ Gerar fundo com IA', onclick: async () => {
-      genBtn.disabled = true; const horde = ImageAI.provider() === 'horde';
-      genOut.textContent = horde ? 'Enviando para a fila do AI Horde…' : 'Gerando… (10–30 s)';
+      genBtn.disabled = true; const pv = ImageAI.provider(), horde = pv === 'horde';
+      genOut.textContent = horde ? 'Enviando para a fila do AI Horde…' : pv === 'pollinations' ? 'Gerando no Pollinations… (10–60 s)' : 'Gerando… (10–30 s)';
       const ctl = { cancelled: false }; cancel = ctl; cancelBtn.hidden = !horde;
       try {
-        const url = horde ? await Horde.generate(prompt.value, o.fmt, { ctl, progress: t => { genOut.textContent = t; } }) : await ImageAI.generate(prompt.value, o.fmt);
+        const url = horde ? await Horde.generate(prompt.value, o.fmt, { ctl, progress: t => { genOut.textContent = t; } }) : pv === 'pollinations' ? await Pollinations.generate(prompt.value, o.fmt) : await ImageAI.generate(prompt.value, o.fmt);
         o.photo = url; (Slide.gen ||= []).unshift(url); addThumb(url, true);
-        genOut.textContent = 'Pronto ✓ (' + (horde ? 'AI Horde · ' + (Horde.lastModel || '') : ImageAI.lastModel) + ') — gere de novo para outras opções.'; redraw();
+        genOut.textContent = 'Pronto ✓ (' + (horde ? 'AI Horde · ' + (Horde.lastModel || '') : pv === 'pollinations' ? 'Pollinations · ' + Pollinations.lastModel : ImageAI.lastModel) + ') — gere de novo para outras opções.'; redraw();
       } catch (e) { genOut.textContent = e.message; } finally { genBtn.disabled = false; cancelBtn.hidden = true; cancel = null; } } });
     const cancelBtn = el('button', { class: 'btn sm', text: 'Cancelar', hidden: true, onclick: () => { if (cancel) cancel.cancelled = true; } });
     const provChips = el('div', { class: 'sl-chips' });
-    const paintProv = () => { provChips.innerHTML = ''; for (const [v, l, t] of [['gemini', 'Nano Banana (Gemini)', 'Rápido e de alta qualidade; precisa de faturamento no Google'], ['horde', 'AI Horde (grátis)', 'Gratuito e comunitário (Stable Diffusion); pode demorar alguns minutos']])
+    const paintProv = () => { provChips.innerHTML = ''; for (const [v, l, t] of [['gemini', 'Nano Banana (Gemini)', 'Rápido e de alta qualidade; precisa de faturamento no Google'], ['pollinations', 'Pollinations (grátis)', 'Gratuito e rápido (Flux); sem chave tem limite de 1 imagem a cada ~15 s'], ['horde', 'AI Horde (grátis)', 'Gratuito e comunitário (Stable Diffusion); pode demorar alguns minutos']])
       provChips.append(el('button', { class: 'chip' + (ImageAI.provider() === v ? ' on' : ''), text: l, title: t, onclick: () => { ImageAI.setProvider(v); paintProv(); resetPrompt(); } })); };
     paintProv();
     const resetPrompt = async () => {
-      if (ImageAI.provider() !== 'horde') { prompt.value = ImageAI.prompt(o, s); return; }
+      if (ImageAI.provider() === 'gemini') { prompt.value = ImageAI.prompt(o, s); return; }
       prompt.value = Horde.template(o, s);
       if (AI.has()) { const before = prompt.value; genOut.textContent = 'Escrevendo a descrição em inglês com a IA…';
         try { const t = await Horde.smartPrompt(o, s); if (prompt.value === before && t) prompt.value = t; genOut.textContent = ''; } catch (e) { genOut.textContent = ''; } }
@@ -440,5 +440,34 @@ const Horde = {
       if (ctl.cancelled || /Cancelado|demorou/.test(e.message)) this.req('/generate/status/' + id, { method: 'DELETE' }).catch(() => { });
       throw e;
     }
+  }
+};
+
+/* ===== Pollinations.ai: gratuito (Flux). Sem chave usa o endpoint aberto (limitado);
+   com chave publicável (pk_…) do enter.pollinations.ai usa o gateway novo. ===== */
+const Pollinations = {
+  SIZES: { '16:9': [1344, 768], '4:3': [1152, 864], '1:1': [1024, 1024], '9:16': [768, 1344] },
+  key() { return AI.cfg().pollKey || ''; },
+  url(prompt, fmt, seed) {
+    const [w, h] = this.SIZES[fmt] || this.SIZES['16:9'];
+    const p = encodeURIComponent(prompt + ', no text, no letters, no watermark');
+    const q = new URLSearchParams({ model: 'flux', width: w, height: h, seed, nologo: 'true', safe: 'true', private: 'true', enhance: 'false', referrer: 'smartsermon' });
+    const k = this.key();
+    if (k) { q.set('key', k); return `https://gen.pollinations.ai/image/${p}?${q}`; }
+    return `https://image.pollinations.ai/prompt/${p}?${q}`;
+  },
+  async generate(prompt, fmt) {
+    const seed = Math.floor(Math.random() * 1e9);
+    let r;
+    try { r = await fetch(this.url(prompt, fmt, seed)); }
+    catch (e) { throw new Error('Sem conexão com o Pollinations (ou o serviço bloqueou o acesso). Tente de novo em instantes.'); }
+    if (r.status === 429) throw new Error('Pollinations: limite gratuito — espere uns 15 segundos' + (this.key() ? '.' : ' ou cadastre uma chave grátis em enter.pollinations.ai.'));
+    if (r.status === 401 || r.status === 403) throw new Error('Pollinations recusou a chave. Confira em ⚙ Chaves e modelos.');
+    if (r.status === 402) throw new Error('Pollinations: sem saldo (pollen) na sua conta para este modelo.');
+    if (!r.ok) throw new Error('Pollinations: erro ' + r.status + '. Tente de novo.');
+    const b = await r.blob();
+    if (!/^image\//.test(b.type)) throw new Error('Pollinations não devolveu imagem. Tente de novo.');
+    this.lastModel = 'Flux';
+    return await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(b); });
   }
 };

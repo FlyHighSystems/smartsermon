@@ -3,7 +3,7 @@
 const AI = {
   cfg() {
     let c = {}; try { c = JSON.parse(localStorage.getItem('ss-ai') || '{}'); } catch (e) { }
-    return { anthropicKey: c.anthropicKey || '', geminiKey: c.geminiKey || '', claudeModel: c.claudeModel || 'claude-sonnet-5-5', geminiModel: c.geminiModel || 'gemini-flash-latest', church: c.church ?? 'Igreja evangélica; cultos de domingo e células; público misto (membros e visitantes).', syncKeys: c.syncKeys !== false, at: c.at || 0, imageModel: c.imageModel || '', hordeKey: c.hordeKey || '' };
+    return { anthropicKey: c.anthropicKey || '', geminiKey: c.geminiKey || '', claudeModel: c.claudeModel || 'claude-sonnet-5-5', geminiModel: c.geminiModel || 'gemini-flash-latest', church: c.church ?? 'Igreja evangélica; cultos de domingo e células; público misto (membros e visitantes).', syncKeys: c.syncKeys !== false, at: c.at || 0, imageModel: c.imageModel || '', hordeKey: c.hordeKey || '', pollKey: c.pollKey || '' };
   },
   /* fromCloud: veio de outro aparelho (mantém o horário original e não reenvia) */
   save(c, { fromCloud = false } = {}) {
@@ -14,12 +14,12 @@ const AI = {
   /* O que vai para a conta: com as chaves (padrão) ou só modelos e contexto */
   cloudPayload() {
     const c = this.cfg(); if (!c.at) return null;
-    return c.syncKeys ? c : { ...c, anthropicKey: '', geminiKey: '', hordeKey: '' };
+    return c.syncKeys ? c : { ...c, anthropicKey: '', geminiKey: '', hordeKey: '', pollKey: '' };
   },
   fromCloud(r) {
     if (!r || !r.at || r.at <= this.cfg().at) return false;
     const loc = this.cfg();
-    this.save(r.syncKeys === false ? { ...r, anthropicKey: loc.anthropicKey, geminiKey: loc.geminiKey, hordeKey: loc.hordeKey } : r, { fromCloud: true });
+    this.save(r.syncKeys === false ? { ...r, anthropicKey: loc.anthropicKey, geminiKey: loc.geminiKey, hordeKey: loc.hordeKey, pollKey: loc.pollKey } : r, { fromCloud: true });
     return true;
   },
   has(p) { const c = this.cfg(); return p === 'claude' ? !!c.anthropicKey : p === 'gemini' ? !!c.geminiKey : !!(c.anthropicKey || c.geminiKey); },
@@ -98,11 +98,11 @@ const AI = {
       el('button', { class: 'btn sm', type: 'button', title: 'Mostrar/ocultar', text: '👁', onclick: () => { inp.type = inp.type === 'password' ? 'text' : 'password'; } }),
       el('button', { class: 'btn sm', type: 'button', title: 'Apagar e colar uma nova', text: 'Trocar', onclick: () => { inp.value = ''; inp.type = 'text'; inp.focus(); } }));
     ak.style.flex = gk.style.flex = '1';
-    const cm = el('input', { class: 'inp', value: c.claudeModel }), gm = el('input', { class: 'inp', value: c.geminiModel }), im = el('input', { class: 'inp', value: c.imageModel, placeholder: 'automático (Nano Banana 2 → Nano Banana)' }), hk = el('input', { class: 'inp', type: 'password', value: c.hordeKey, placeholder: 'opcional — sem chave usa a anônima (fila mais lenta)', autocomplete: 'off' });
+    const cm = el('input', { class: 'inp', value: c.claudeModel }), gm = el('input', { class: 'inp', value: c.geminiModel }), im = el('input', { class: 'inp', value: c.imageModel, placeholder: 'automático (Nano Banana 2 → Nano Banana)' }), hk = el('input', { class: 'inp', type: 'password', value: c.hordeKey, placeholder: 'opcional — sem chave usa a anônima (fila mais lenta)', autocomplete: 'off' }), pk = el('input', { class: 'inp', type: 'password', value: c.pollKey, placeholder: 'opcional — pk_… (sem chave: ~1 imagem a cada 15 s)', autocomplete: 'off' });
     const ch = el('textarea', { class: 'inp', rows: 2 }); ch.value = c.church;
     const sk = el('input', { type: 'checkbox', checked: c.syncKeys });
     const out = el('p', { class: 'small' });
-    const val = () => ({ anthropicKey: ak.value.trim(), geminiKey: gk.value.trim(), claudeModel: cm.value.trim() || 'claude-sonnet-5-5', geminiModel: gm.value.trim() || 'gemini-flash-latest', church: ch.value.trim(), syncKeys: sk.checked, imageModel: im.value.trim(), hordeKey: hk.value.trim() });
+    const val = () => ({ anthropicKey: ak.value.trim(), geminiKey: gk.value.trim(), claudeModel: cm.value.trim() || 'claude-sonnet-5-5', geminiModel: gm.value.trim() || 'gemini-flash-latest', church: ch.value.trim(), syncKeys: sk.checked, imageModel: im.value.trim(), hordeKey: hk.value.trim(), pollKey: pk.value.trim() });
     const body = el('div', { class: 'ai-set' },
       el('p', { class: 'muted', html: 'As chamadas vão direto daqui para a Anthropic e o Google. Cada análise custa centavos (cobrança na sua conta de cada serviço). Você pode usar só uma das duas.' }),
       el('label', { class: 'lbl', text: 'Chave da API do Claude (console.anthropic.com › API Keys)' }), keyRow(ak),
@@ -112,6 +112,7 @@ const AI = {
         el('label', { class: 'lbl', text: 'Modelo do Gemini' }), gm,
         el('label', { class: 'lbl', text: 'Modelo de imagem (fundos do telão)' }), im,
         el('label', { class: 'lbl', text: 'Chave do AI Horde (grátis em aihorde.net/register — dá prioridade na fila)' }), hk,
+        el('label', { class: 'lbl', text: 'Chave do Pollinations (grátis em enter.pollinations.ai — use a publicável pk_…)' }), pk,
         el('label', { class: 'lbl', text: 'Contexto da sua igreja (ajuda a IA a calibrar a revisão)' }), ch),
       el('label', { class: 'lbl', style: { display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 'normal' } }, sk,
         el('span', { html: 'Guardar as chaves na minha conta e usar em <b>todos os meus aparelhos</b> (precisa estar logado na nuvem). Desmarcado: ficam só neste aparelho.' })),
