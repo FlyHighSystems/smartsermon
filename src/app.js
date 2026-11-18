@@ -416,7 +416,8 @@ const App = {
       go.onclick = () => fetchIt();
       const body = el('div', { class: 'b-body', contenteditable: 'true', 'data-ph': T.ph, html: b.html || '' });
       this.bindEditable(body, b);
-      wrap.append(el('div', { class: 'verse-head' }, ref, b.verLabel && !b.version ? el('span', { class: 'pill', text: b.verLabel, title: 'Versão do texto colado' }) : null, ver, go), body);
+      const study = el('button', { class: 'btn sm', text: '🔍', title: 'Estudo das palavras no original (Strong)', onclick: () => ref.value.trim() ? StrongUI.open(ref.value) : UI.toast('Informe a referência') });
+      wrap.append(el('div', { class: 'verse-head' }, ref, b.verLabel && !b.version ? el('span', { class: 'pill', text: b.verLabel, title: 'Versão do texto colado' }) : null, ver, go, study), body);
       if (!b.html && b.ref && Bible.current()) setTimeout(() => fetchIt(true), 0);
       return wrap;
     }

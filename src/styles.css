@@ -352,3 +352,20 @@ body.dragging #sec-list .sec{transition:background .15s}
 @media (hover:none){.pg-menu{opacity:.6}}
 .page.drop-before{box-shadow:inset 0 3px 0 var(--accent)}.page.drop-after{box-shadow:inset 0 -3px 0 var(--accent)}
 .pm{display:flex;flex-direction:column;gap:6px}
+
+/* Estudo Strong */
+.st-head{display:flex;align-items:center;gap:10px}.st-head h3{margin:0;flex:1;text-align:center}
+.st-pt{font-family:Georgia,serif;font-size:19px;line-height:1.6;margin:6px 0}
+.st-pt.aligned .st-link{border-bottom:2px solid color-mix(in srgb,var(--accent) 40%,transparent);cursor:pointer}
+.st-link sup{font-family:"Segoe UI",sans-serif;font-size:10px;color:var(--accent);margin-left:1px}
+.st-link.on{background:var(--accent-l);border-bottom-color:var(--accent)}
+.st-orig{font-size:24px;line-height:1.7;padding:10px 12px;border-radius:10px;background:var(--panel2);margin:8px 0}
+.he{font-family:"SBL Hebrew","Ezra SIL","Times New Roman",serif}.gr{font-family:"SBL Greek","Gentium Plus","Palatino Linotype",serif}
+.st-grid{display:flex;flex-wrap:wrap;gap:6px}
+.st-w{display:flex;flex-direction:column;align-items:center;gap:1px;border:1px solid var(--line);background:var(--input);border-radius:10px;padding:6px 10px;min-width:84px;cursor:pointer}
+.st-w.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-l)}
+.st-o{font-size:22px}.st-tr{font-size:12px;color:var(--muted);font-style:italic}.st-n{font-size:12px;font-weight:700;color:var(--accent)}.st-g{font-size:12px;max-width:120px;text-align:center}
+.st-det{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+.st-dh{display:flex;gap:16px;align-items:center}.st-big{font-size:38px}
+.st-exp{background:var(--panel2);border-radius:10px;padding:10px 14px;margin-top:8px;line-height:1.55}
+.st-cred{margin-top:14px}

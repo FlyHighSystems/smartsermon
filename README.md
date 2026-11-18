@@ -7,6 +7,9 @@ Web app para preparar e pregar ministrações. É feito para o Surface (Windows,
 - **Editor no estilo OneNote:** cadernos, seções e páginas, com **ordem manual e subpáginas** (⋯ na página, arrastar, Ctrl+Alt+] / Ctrl+Alt+[). Os blocos podem ser Ponto, Introdução, Texto, Versículo, Ilustração, Aplicação, Frase-chave, Conclusão, Desenho (caneta) e Imagem, além dos tipos que você criar.
 - **Modo pregação:** rolagem automática (toque para pausar) ou ponto a ponto, pinça para mudar o tamanho da letra, cronômetro, estimativa de duração calibrada pelo seu ritmo e tela sempre ligada.
 - **Bíblia offline:** Bíblia Livre (CC BY 4.0) e outras versões para uso pessoal, com busca e inserção de versículos.
+- **Estudo no original (Strong):** 🔍 em qualquer versículo mostra o hebraico/grego palavra por palavra, com número de Strong, transliteração e léxico; a IA explica a palavra em português e liga cada termo à sua tradução.
+- **Revisão com IA:** Claude e Gemini avaliam o sermão lado a lado; o app confere as referências bíblicas.
+- **Pós-culto:** tempo por ponto, transcrição ao vivo e análise “planejado x pregado” (posts e devocional).
 - **Importação do OneNote:** **Novo caderno › Importar caderno do OneNote** (cada seção exportada vira uma seção), caderno inteiro em .mht, ou copiar e colar. Na lista de páginas, **☑ Selecionar** permite mover várias páginas para outra seção de uma vez.
 - **Exportação:** PDF, Word e backup .json.
 - **Nuvem:** login e sincronização entre aparelhos (Supabase). O app continua funcionando sem internet.
@@ -76,5 +79,7 @@ Arquivos em `src/`:
 | `onenote.js` | importação direta via Microsoft Graph |
 | `cloud.js` | login e sincronização com o Supabase |
 | `supabase.sql` | estrutura do banco |
+
+Textos originais: Open Scriptures Hebrew Bible (WLC, CC BY 4.0), SBLGNT/MorphGNT, léxico de Strong (domínio público, Open Scriptures).
 
 Texto bíblico da Bíblia Livre: © Diego Santos, Mario Sérgio e Marco Teles, licença CC BY 4.0. As demais versões têm direitos autorais dos seus detentores e servem só para uso pessoal.

@@ -179,7 +179,7 @@ const BiblePane = {
     for (const v of vs) { const l = ranges[ranges.length - 1]; if (l && v === l[1] + 1) l[1] = v; else ranges.push([v, v]); }
     const nav = App.meta.bibleNav; return { book: nav.book, ch: nav.ch, ranges };
   },
-  updateActions() { const r = this.selectionRef(); $('#bp-insert').disabled = !r; $('#bp-copy').disabled = !r; $('#bp-sel-label').textContent = r ? refLabel(r) : 'Toque nos versículos para selecionar'; },
+  updateActions() { const r = this.selectionRef(); $('#bp-insert').disabled = !r; $('#bp-copy').disabled = !r; $('#bp-study').disabled = !r; $('#bp-sel-label').textContent = r ? refLabel(r) : 'Toque nos versículos para selecionar'; },
   go(book, ch, v) { App.meta.bibleNav = { book, ch, v }; this.sel.clear(); if (v) this.sel.add(v); App.saveMeta(); this.render(); },
   async insert() {
     const r = this.selectionRef(); if (!r) return;
@@ -220,6 +220,7 @@ const BiblePane = {
     $('#bp-go').onclick = () => this.searchBox($('#bp-search').value);
     $('#bp-insert').onclick = () => this.insert();
     $('#bp-copy').onclick = () => this.copy();
+    $('#bp-study').onclick = () => { const r = this.selectionRef(); if (r) StrongUI.open(r); };
     $('#bp-manage').onclick = () => BibleManager.open();
   }
 };
