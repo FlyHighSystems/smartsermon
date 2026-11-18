@@ -45,6 +45,9 @@ const App = {
     document.addEventListener('keydown', e => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); this.flush(); UI.toast('Salvo'); }
       if (e.key === 'F5' && !Reader.active) { e.preventDefault(); Reader.open(this.cur); }
+      const inText = e.target.closest && e.target.closest('[contenteditable], input, textarea, select');
+      if (this.cur && !Reader.active && e.ctrlKey && e.altKey && (e.key === ']' || e.key === '[')) { e.preventDefault(); this.indentPage(this.cur.id, e.key === ']' ? 1 : -1); }
+      if (this.cur && !Reader.active && !inText && e.altKey && e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); this.movePage(this.cur.id, e.key === 'ArrowUp' ? -1 : 1); }
     });
     const saveAll = () => { this.flush(); DB.put('kv', 'meta', this.meta); };
     window.addEventListener('beforeunload', saveAll); window.addEventListener('pagehide', saveAll);
@@ -61,7 +64,61 @@ const App = {
     this._saveMetaDb();
   },
   _saveMetaDb: debounce(function () { return DB.put('kv', 'meta', App.meta); }, 300),
-  sectionSermons(secId) { return [...this.sermons.values()].filter(s => s.sec === secId).sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.updated - a.updated); },
+  sectionSermons(secId) {
+    const arr = [...this.sermons.values()].filter(s => s.sec === secId);
+    const byDate = (a, b) => (b.date || '').localeCompare(a.date || '') || b.updated - a.updated;
+    if (!arr.some(s => s.order != null)) return arr.sort(byDate);
+    return arr.sort((a, b) => (a.order ?? 1e9) - (b.order ?? 1e9) || byDate(a, b));
+  },
+  /* ===== Ordem manual e subpáginas (como no OneNote) ===== */
+  pageList(secId) { const l = this.sectionSermons(secId); this.normalizeLevels(l); return l; },
+  normalizeLevels(l) { l.forEach((s, i) => { const max = i === 0 ? 0 : Math.min(2, (l[i - 1].level || 0) + 1); if ((s.level || 0) > max) s.level = max; }); },
+  blockEnd(l, i) { let j = i; const lv = l[i].level || 0; while (j + 1 < l.length && (l[j + 1].level || 0) > lv) j++; return j; },
+  saveOrder(l) { l.forEach((s, i) => { if (s.order !== i) { s.order = i; this.touch(s); } }); this.normalizeLevels(l); this.flush(); this.renderPages(); },
+  movePage(id, dir) {
+    const l = this.pageList(this.meta.currentSec); const i = l.findIndex(s => s.id === id); if (i < 0) return;
+    const j = this.blockEnd(l, i), blk = l.slice(i, j + 1), lv = l[i].level || 0;
+    if (dir < 0) {
+      if (i === 0 || (l[i - 1].level || 0) < lv) return; // já é a primeira dentro do grupo
+      let k = i - 1; while (k > 0 && (l[k].level || 0) > lv) k--;
+      l.splice(i, blk.length); l.splice(k, 0, ...blk);
+    } else {
+      if (j + 1 >= l.length || (l[j + 1].level || 0) < lv) return; // já é a última dentro do grupo
+      const e = this.blockEnd(l, j + 1);
+      l.splice(i, blk.length); l.splice(e - blk.length + 1, 0, ...blk);
+    }
+    this.saveOrder(l);
+  },
+  indentPage(id, d) {
+    const l = this.pageList(this.meta.currentSec); const i = l.findIndex(s => s.id === id); if (i < 0) return;
+    if (d > 0 && i === 0) { UI.toast('A primeira página não pode ser subpágina'); return; }
+    const j = this.blockEnd(l, i); const cur = l[i].level || 0;
+    const nl = d > 0 ? Math.min(2, cur + 1, (l[i - 1].level || 0) + 1) : Math.max(0, cur - 1);
+    if (nl === cur) { if (d > 0) UI.toast('Máximo de 2 níveis de subpágina'); return; }
+    for (let k = i; k <= j; k++) { const v = Math.max(0, Math.min(2, (l[k].level || 0) + (nl - cur))); if ((l[k].level || 0) !== v) { l[k].level = v; this.touch(l[k]); } }
+    this.saveOrder(l);
+  },
+  toggleCollapse(id) { const s = this.sermons.get(id); s.collapsed = !s.collapsed; this.touch(s); this.renderPages(); },
+  dropPage(dragId, targetId, after) {
+    const drag = this.sermons.get(dragId), target = this.sermons.get(targetId); if (!drag || !target || dragId === targetId) return;
+    if (drag.sec !== target.sec) { drag.sec = target.sec; drag.level = 0; }
+    const l = this.pageList(target.sec); const i = l.findIndex(s => s.id === dragId);
+    const j = this.blockEnd(l, i); const blk = l.splice(i, j - i + 1);
+    if (blk.some(b => b.id === targetId)) { l.splice(i, 0, ...blk); return; }
+    let t = l.findIndex(s => s.id === targetId); if (after) t = this.blockEnd(l, t) + 1;
+    const shift = (target.level || 0) - (blk[0].level || 0);
+    blk.forEach(b => { b.level = Math.max(0, Math.min(2, (b.level || 0) + shift)); this.touch(b); });
+    l.splice(t, 0, ...blk); this.saveOrder(l); this.renderNav();
+  },
+  pageMenu(s) {
+    const m = UI.modal({ title: s.title || 'Página', body: el('div', { class: 'pm' },
+      el('button', { class: 'on-item', onclick: () => { m.close(); this.movePage(s.id, -1); } }, el('b', { text: '↑ Subir' })),
+      el('button', { class: 'on-item', onclick: () => { m.close(); this.movePage(s.id, 1); } }, el('b', { text: '↓ Descer' })),
+      el('button', { class: 'on-item', onclick: () => { m.close(); this.indentPage(s.id, 1); } }, el('b', { text: '→ Tornar subpágina' }), el('span', { class: 'muted small', text: 'Fica recuada debaixo da página de cima' })),
+      el('button', { class: 'on-item', onclick: () => { m.close(); this.indentPage(s.id, -1); } }, el('b', { text: '← Promover' }), el('span', { class: 'muted small', text: 'Volta um nível' })),
+      el('button', { class: 'on-item', onclick: async () => { m.close(); const r = await SectionPicker.pick(`“${s.title}”`, true); if (r) this.moveSermons([s.id], r.sec, r.copy); } }, el('b', { text: '⇢ Mover / Copiar para outra seção' })),
+      el('button', { class: 'on-item', onclick: () => { m.close(); this.open(s.id); this.deleteSermon(); } }, el('b', { class: 'danger-text', text: 'Excluir' }))) });
+  },
 
   /* ---- persistência ---- */
   pending: new Set(),
@@ -153,7 +210,12 @@ const App = {
     const list = $('#page-list'); list.innerHTML = '';
     this.sel ||= new Set(); this.renderBulk();
     if (!items.length) list.append(el('p', { class: 'muted pad', text: q ? 'Nada encontrado.' : 'Nenhuma ministração nesta seção.' }));
-    for (const s of items) {
+    if (!q) { this.normalizeLevels(items); }
+    const hidden = new Set(); { const stack = []; items.forEach((s, i) => { const lv = q ? 0 : (s.level || 0); while (stack.length && stack.at(-1).lv >= lv) stack.pop(); if (stack.some(x => x.collapsed)) hidden.add(s.id); stack.push({ lv, collapsed: !!s.collapsed }); }); }
+    for (const [idx, s] of items.entries()) {
+      if (!q && hidden.has(s.id)) continue;
+      const lv = q ? 0 : (s.level || 0);
+      const hasKids = !q && items[idx + 1] && (items[idx + 1].level || 0) > lv;
       const preview = s.passage || htmlToText(s.blocks.find(b => b.type === 'text')?.html || '').slice(0, 60);
       if (this.selMode) {
         const on = this.sel.has(s.id);
@@ -162,9 +224,20 @@ const App = {
           el('span', {}, el('div', { class: 'page-title', text: s.title || 'Sem título' }), el('div', { class: 'page-sub', text: s.date ? new Date(s.date + 'T12:00').toLocaleDateString('pt-BR') : '' }))));
         continue;
       }
-      list.append(el('div', { class: 'page' + (this.cur?.id === s.id ? ' active' : ''), 'data-id': s.id, draggable: 'true', onclick: () => this.open(s.id), ondragstart: e => { e.dataTransfer.setData('text/x-sermon', s.id); e.dataTransfer.effectAllowed = 'copyMove'; document.body.classList.add('dragging'); }, ondragend: () => document.body.classList.remove('dragging') },
-        el('div', { class: 'page-title', text: s.title || 'Sem título' }),
-        el('div', { class: 'page-sub', text: [s.date ? new Date(s.date + 'T12:00').toLocaleDateString('pt-BR') : '', preview].filter(Boolean).join(' · ') })));
+      const row = el('div', { class: `page lv${lv}` + (this.cur?.id === s.id ? ' active' : ''), 'data-id': s.id, draggable: 'true', onclick: () => this.open(s.id),
+        ondragstart: e => { e.dataTransfer.setData('text/x-sermon', s.id); e.dataTransfer.effectAllowed = 'copyMove'; document.body.classList.add('dragging'); this._drag = s.id; },
+        ondragend: () => { document.body.classList.remove('dragging'); this._drag = null; } },
+        hasKids ? el('button', { class: 'pg-tog', title: s.collapsed ? 'Mostrar subpáginas' : 'Recolher subpáginas', text: s.collapsed ? '▸' : '▾', onclick: e => { e.stopPropagation(); this.toggleCollapse(s.id); } }) : el('span', { class: 'pg-tog sp' }),
+        el('div', { class: 'pg-main' },
+          el('div', { class: 'page-title', text: (s.title || 'Sem título') + (s.collapsed && hasKids ? ' …' : '') }),
+          el('div', { class: 'page-sub', text: [s.date ? new Date(s.date + 'T12:00').toLocaleDateString('pt-BR') : '', preview].filter(Boolean).join(' · ') })),
+        q ? null : el('button', { class: 'pg-menu icon-btn sm', title: 'Ordem, subpágina, mover…', text: '⋯', onclick: e => { e.stopPropagation(); this.pageMenu(s); } }));
+      if (!q) {
+        row.addEventListener('dragover', e => { if (!this._drag || this._drag === s.id) return; e.preventDefault(); const r = row.getBoundingClientRect(); const after = e.clientY > r.top + r.height / 2; row.classList.toggle('drop-after', after); row.classList.toggle('drop-before', !after); });
+        row.addEventListener('dragleave', () => row.classList.remove('drop-after', 'drop-before'));
+        row.addEventListener('drop', e => { e.preventDefault(); const after = row.classList.contains('drop-after'); row.classList.remove('drop-after', 'drop-before'); const id = e.dataTransfer.getData('text/x-sermon'); if (id) this.dropPage(id, s.id, after); });
+      }
+      list.append(row);
     }
   },
   _bulk: null,
@@ -191,11 +264,11 @@ const App = {
     for (const id of ids) {
       const s = this.sermons.get(id); if (!s) continue;
       if (copy) {
-        const c = structuredClone(s); c.id = uid(); c.sec = secId; c.created = Date.now(); c.blocks.forEach(b => b.id = uid());
+        const c = structuredClone(s); c.id = uid(); c.sec = secId; c.created = Date.now(); c.blocks.forEach(b => b.id = uid()); c.level = 0; delete c.collapsed; if (c.order != null) c.order = s.order + 0.5;
         delete c.preached; delete c.reviews; delete c.source; delete c.welcome;
         if (secId === s.sec) c.title += ' (cópia)';
         this.sermons.set(c.id, c); this.touch(c); last = c;
-      } else if (s.sec !== secId) { s.sec = secId; this.touch(s); last = s; }
+      } else if (s.sec !== secId) { s.sec = secId; s.level = 0; const l = this.sectionSermons(secId); if (l.some(x => x.order != null && x !== s)) s.order = 1e6 + Date.now() % 1e6; this.touch(s); last = s; }
     }
     this.flush(); this.sel = new Set();
     UI.toast(`${ids.length} página(s) ${copy ? 'copiada(s)' : 'movida(s)'} para “${sec.name}”`, { label: 'Abrir seção', fn: () => { this.meta.currentNb = sec.nb; this.meta.currentSec = sec.id; this.saveMeta(); this.renderNav(); const f = this.sectionSermons(sec.id)[0]; if (f) this.open(f.id); } });
@@ -204,7 +277,14 @@ const App = {
   newSermon(data = {}) {
     if (!this.meta.currentSec) { UI.toast('Crie uma seção primeiro'); return; }
     const s = Object.assign(blankSermon(this.meta.currentSec), data);
-    this.sermons.set(s.id, s); this.touch(s); this.flush();
+    this.sermons.set(s.id, s);
+    const l = this.sectionSermons(this.meta.currentSec);
+    if (l.some(x => x.order != null)) { // ordem manual: entra logo abaixo da página aberta (e das subpáginas dela)
+      const rest = l.filter(x => x !== s); let at = rest.length;
+      const ci = this.cur ? rest.findIndex(x => x.id === this.cur.id) : -1; if (ci >= 0) { at = this.blockEnd(rest, ci) + 1; s.level = this.cur.level || 0; }
+      rest.splice(at, 0, s); rest.forEach((x, i) => { if (x.order !== i) { x.order = i; if (x !== s) this.touch(x); } });
+    }
+    this.touch(s); this.flush();
     this.renderNav(); this.open(s.id);
     setTimeout(() => { const t = $('#s-title'); t && (t.focus(), t.select()); }, 50);
     return s;
