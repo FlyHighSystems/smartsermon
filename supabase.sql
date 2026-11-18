@@ -1,5 +1,5 @@
 -- ============================================================
--- SmartSermon — banco de dados no Supabase
+-- SmartSower — banco de dados no Supabase
 -- Cole tudo no SQL Editor do seu projeto e clique em "Run".
 -- Pode rodar de novo sem problema (o script é idempotente).
 -- ============================================================

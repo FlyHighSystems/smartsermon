@@ -1,7 +1,7 @@
 {
- "name": "SmartSermon",
- "short_name": "SmartSermon",
- "description": "Prepare e pregue suas ministrações",
+ "name": "SmartSower",
+ "short_name": "SmartSower",
+ "description": "Prepare e pregue suas ministrações e escreva seus livros",
  "start_url": "./",
  "scope": "./",
  "display": "standalone",

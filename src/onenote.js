@@ -145,7 +145,7 @@ function orderOneNoteHTML(html) {
   kids.forEach(k => doc.body.append(k));
   return { doc, body: doc.body.innerHTML };
 }
-/* InkML → blocos de desenho do SmartSermon (um por grupo de traços próximos verticalmente) */
+/* InkML → blocos de desenho do SmartSower (um por grupo de traços próximos verticalmente) */
 function inkmlToInks(xml) {
   if (!xml) return [];
   const doc = new DOMParser().parseFromString(xml, 'application/xml');
@@ -242,19 +242,19 @@ const OneNoteUI = {
     this.viewNotebooks();
   },
   viewHosting() {
-    this.set(el('p', { html: 'O login da Microsoft só funciona com o SmartSermon aberto num endereço <b>https</b> — não abrindo o arquivo <code>index.html</code> direto do computador.' }),
-      el('ol', { class: 'steps', html: '<li>Abra <b>app.netlify.com/drop</b> no Edge e arraste a pasta do SmartSermon.</li><li>Abra o link https que aparecer e instale como app (⋯ › Aplicativos › Instalar).</li><li>Leve suas ministrações: aqui, <b>Exportar › Backup</b>; lá, <b>Importar › Restaurar backup</b>.</li>' }),
+    this.set(el('p', { html: 'O login da Microsoft só funciona com o SmartSower aberto num endereço <b>https</b> — não abrindo o arquivo <code>index.html</code> direto do computador.' }),
+      el('ol', { class: 'steps', html: '<li>Abra <b>app.netlify.com/drop</b> no Edge e arraste a pasta do SmartSower.</li><li>Abra o link https que aparecer e instale como app (⋯ › Aplicativos › Instalar).</li><li>Leve suas ministrações: aqui, <b>Exportar › Backup</b>; lá, <b>Importar › Restaurar backup</b>.</li>' }),
       el('p', { class: 'muted small', text: 'Enquanto isso, a importação por arquivo (.docx/.mht) e por copiar-e-colar continua funcionando aqui.' }));
   },
   viewSetup() {
     const uri = MSGraph.redirectUri();
     const inp = el('input', { class: 'inp', placeholder: 'ID do aplicativo (cliente) — ex.: 1a2b3c4d-....', value: App.meta.msClientId || '' });
     this.set(
-      el('p', { text: 'Configuração única (cerca de 10 minutos). Ela autoriza o SmartSermon a LER seus cadernos — nada é alterado no OneNote.' }),
+      el('p', { text: 'Configuração única (cerca de 10 minutos). Ela autoriza o SmartSower a LER seus cadernos — nada é alterado no OneNote.' }),
       el('ol', { class: 'steps', html: `
         <li>Abra <b>entra.microsoft.com</b> (ou portal.azure.com) e entre com sua conta Microsoft.</li>
         <li>Vá em <b>Aplicativos › Registros de aplicativo › Novo registro</b>.</li>
-        <li>Nome: <b>SmartSermon</b>. Em <b>Tipos de conta com suporte</b> escolha <b>“Contas em qualquer diretório organizacional e contas pessoais da Microsoft”</b>.</li>
+        <li>Nome: <b>SmartSower</b>. Em <b>Tipos de conta com suporte</b> escolha <b>“Contas em qualquer diretório organizacional e contas pessoais da Microsoft”</b>.</li>
         <li>Em <b>URI de redirecionamento</b>, escolha a plataforma <b>Aplicativo de página única (SPA)</b> e cole exatamente:<div class="copy-row"><code id="on-uri">${esc(uri)}</code><button class="btn sm" id="on-copy">Copiar</button></div></li>
         <li>Clique em <b>Registrar</b> e copie o <b>ID do aplicativo (cliente)</b> que aparece na página do app. Cole abaixo.</li>` }),
       inp,
@@ -312,7 +312,7 @@ const OneNoteUI = {
       el('label', { class: 'on-check all' }, all, ` Todas as seções (${secs.length})`),
       el('div', { class: 'on-list' }, secs.map((s, i) => el('label', { class: 'on-check' }, checks[i], ' ' + s.path))),
       el('label', { class: 'on-check' }, upd, ' Trazer de novo as páginas que mudaram no OneNote desde a última importação'),
-      el('p', { class: 'muted small', text: 'Cada seção vira uma seção do SmartSermon dentro de um caderno com o mesmo nome. Páginas já importadas não se repetem — se a importação parar, é só rodar de novo.' }),
+      el('p', { class: 'muted small', text: 'Cada seção vira uma seção do SmartSower dentro de um caderno com o mesmo nome. Páginas já importadas não se repetem — se a importação parar, é só rodar de novo.' }),
       el('div', { class: 'row-btns' }, el('button', { class: 'btn primary', text: 'Importar', onclick: () => {
         const chosen = checks.filter(c => c.checked).map(c => c._sec); if (!chosen.length) return UI.toast('Escolha ao menos uma seção');
         this.run(nb, chosen, { update: upd.checked });
@@ -325,7 +325,7 @@ const OneNoteUI = {
     this.set(el('h4', { text: 'Importando “' + nb.displayName + '”' }), line, bar, stat, log, el('div', { class: 'row-btns' }, stop));
     MSGraph.onWait = s => { line.textContent = `A Microsoft pediu uma pausa de ${s}s (limite de requisições)… continuando em seguida.`; };
     const c = { new: 0, upd: 0, skip: 0, err: 0, total: 0 };
-    // caderno e seções no SmartSermon
+    // caderno e seções no SmartSower
     let mpNb = App.meta.notebooks.find(n => n.src === nb.id);
     if (!mpNb) { mpNb = { id: uid(), name: nb.displayName, color: SECTION_COLORS[App.meta.notebooks.length % 10], src: nb.id }; App.meta.notebooks.push(mpNb); }
     const bySrc = new Map(); for (const s of App.sermons.values()) if (s.source?.onenote) bySrc.set(s.source.onenote, s);

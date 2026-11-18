@@ -210,9 +210,14 @@ const REVIEW_KINDS = [
   ['devocional', 'Devocional curta', 'Texto devocional CURTO (2 a 5 minutos de leitura) para edificação pessoal. NÃO cobre estrutura de sermão, várias ilustrações, apelo formal ou contexto exaustivo. Avalie proporcionalmente ao gênero: clareza, fidelidade, uma ideia central bem aplicada. Se um critério não se aplica a uma devocional, use "nota": null e diga "não se aplica a uma devocional".'],
   ['estudo', 'Estudo bíblico', 'Estudo bíblico de ensino: pese mais fidelidade, contexto e clareza didática; apelo emocional não é esperado.'],
   ['celula', 'Palavra para célula / PG', 'Palavra curta para pequeno grupo: deve gerar conversa e aplicação; perguntas para o grupo valem mais que oratória. Critérios que não se aplicam: "nota": null.'],
-  ['outro', 'Outro', 'Gênero livre: adapte os critérios ao propósito do texto e use "nota": null quando um critério não se aplicar.']
+  ['outro', 'Outro', 'Gênero livre: adapte os critérios ao propósito do texto e use "nota": null quando um critério não se aplicar.'],
+  ['capitulo', 'Capítulo de livro (editor)', 'Capítulo de um LIVRO cristão de não ficção, não um sermão. Faça edição de desenvolvimento (tese, argumento, estrutura, ritmo) E edição de linha: em "riscos", aponte trechos concretos (frases longas, repetições de palavras, clichês, passagens que soam como pregação falada e não como texto escrito) com a reescrita sugerida. Não cobre apelo nem estrutura de culto.', 'book'],
+  ['beta', 'Leitor beta', 'Leia como um LEITOR comum do público do livro, não como especialista. Diga com sinceridade onde ficou entediado, confuso ou desconfiado, onde se emocionou, e se teria vontade de continuar. Em "riscos", cite os trechos onde você largaria o livro e por quê.', 'book']
 ];
-const reviewKind = s => s.kind || (() => { const n = (App.meta.sections.find(x => x.id === s.sec)?.name || '').toLowerCase(); return /devoc/.test(n) ? 'devocional' : /estud/.test(n) ? 'estudo' : /c[eé]lula|pg|pequeno/.test(n) ? 'celula' : 'sermao'; })();
+const BOOK_CRITERIA = [['tese', 'Ideia central e promessa do capítulo'], ['fidelidade', 'Fidelidade bíblica e teológica'], ['argumento', 'Argumentação e progressão'], ['ritmo', 'Ritmo e engajamento'], ['voz', 'Voz e estilo (texto escrito, não falado)'], ['clareza', 'Clareza'], ['aberturafim', 'Abertura e fechamento']];
+const BETA_CRITERIA = [['interesse', 'Prendeu minha atenção'], ['clareza', 'Entendi sem esforço'], ['credibilidade', 'Confiei no autor'], ['emocao', 'Me tocou'], ['pratica', 'Sei o que fazer com isso'], ['continuar', 'Quero ler o próximo capítulo']];
+const criteriaFor = kind => kind === 'capitulo' ? BOOK_CRITERIA : kind === 'beta' ? BETA_CRITERIA : REVIEW_CRITERIA;
+const reviewKind = s => (Book.is(s) ? (['capitulo', 'beta'].includes(s.kind) ? s.kind : 'capitulo') : s.kind && !['capitulo', 'beta'].includes(s.kind) ? s.kind : null) || (() => { const n = (App.meta.sections.find(x => x.id === s.sec)?.name || '').toLowerCase(); return /devoc/.test(n) ? 'devocional' : /estud/.test(n) ? 'estudo' : /c[eé]lula|pg|pequeno/.test(n) ? 'celula' : 'sermao'; })();
 const REVIEW_CRITERIA = [
   ['texto', 'Fidelidade ao texto bíblico'], ['contexto', 'Contexto histórico e literário'], ['estrutura', 'Estrutura e progressão'],
   ['aplicacao', 'Aplicação prática'], ['ilustracoes', 'Ilustrações'], ['clareza', 'Clareza para o público'], ['conclusao', 'Conclusão e apelo']
@@ -220,7 +225,8 @@ const REVIEW_CRITERIA = [
 const Review = {
   system(kind = 'sermao') {
     const K = REVIEW_KINDS.find(k => k[0] === kind) || REVIEW_KINDS[0];
-    return `Você é um revisor homilético experiente, com formação em exegese bíblica (hebraico e grego), teologia e comunicação. Você ajuda um pastor a MELHORAR o próprio sermão — você não reescreve o sermão por ele.
+    const intro = K[3] === 'book' ? (kind === 'beta' ? 'Você é um leitor beta: cristão, leitor frequente, do público deste livro. Você ajuda o autor a enxergar como o texto chega ao leitor — você não reescreve o livro por ele.' : 'Você é um editor de livros cristãos de não ficção, com formação em teologia e exegese. Você ajuda o autor a MELHORAR o próprio capítulo — você não reescreve o livro por ele.') : 'Você é um revisor homilético experiente, com formação em exegese bíblica (hebraico e grego), teologia e comunicação. Você ajuda um pastor a MELHORAR o próprio sermão — você não reescreve o sermão por ele.';
+    return `${intro}
 Contexto da igreja: ${AI.cfg().church}
 GÊNERO DO TEXTO: ${K[1]}. ${K[2]}
 Regras:
@@ -230,7 +236,7 @@ Regras:
 - Escreva em português do Brasil.
 Responda SOMENTE com JSON válido neste formato:
 {"resumo":"2-3 frases sobre a mensagem central e a impressão geral",
- "criterios":[${REVIEW_CRITERIA.map(([id]) => `{"id":"${id}","nota":0,"comentario":"","sugestao":""}`).join(',')}],
+ "criterios":[${criteriaFor(kind).map(([id]) => `{"id":"${id}","nota":0,"comentario":"","sugestao":""}`).join(',')}],
  "pontos_fortes":["..."],
  "riscos":[{"trecho":"citação curta do sermão","problema":"...","sugestao":"..."}],
  "perguntas_ouvinte_cetico":["perguntas que um ouvinte crítico faria"],
@@ -239,7 +245,9 @@ Notas de 0 a 10.`;
   },
   async run(s, providers, onStep) {
     const text = AI.sermonText(s); const kind = reviewKind(s); const K = REVIEW_KINDS.find(k => k[0] === kind);
-    const user = `Revise este texto (gênero: ${K[1]}):\n\n${text}`;
+    let ctx = '';
+    if (Book.is(s)) { const nb = Book.nbOf(s.sec); ctx = `LIVRO: "${nb.name}"${Book.info(nb).subtitle ? ' — ' + Book.info(nb).subtitle : ''}. Este é o capítulo ${Book.numOf(s) || '?'}.\nMapa do livro (títulos e resumos dos capítulos):\n` + Book.chapters(nb).filter(c => c.top).map(c => `${c.num}. ${c.s.title}${Book.meta(c.s).synopsis ? ' — ' + Book.meta(c.s).synopsis : ''}`).join('\n') + '\n\n'; }
+    const user = `${ctx}Revise este texto (gênero: ${K[1]}):\n\n${text}`;
     const tasks = providers.map(async p => {
       onStep && onStep(p, 'run');
       try {
@@ -257,7 +265,7 @@ Notas de 0 a 10.`;
   },
   open(s) {
     const body = el('div', { class: 'rv' });
-    const m = UI.modal({ title: 'Revisão do sermão', body, wide: true });
+    const m = UI.modal({ title: Book.is(s) ? 'Revisão do capítulo' : 'Revisão do sermão', body, wide: true });
     m.box.classList.add('xl');
     const start = () => {
       body.innerHTML = '';
@@ -265,7 +273,7 @@ Notas de 0 a 10.`;
       const gm = el('input', { type: 'checkbox', checked: AI.has('gemini'), disabled: !AI.has('gemini') });
       const kindBox = el('div', { class: 'sl-chips rv-kind' });
       const paintKind = () => { kindBox.innerHTML = ''; const cur = reviewKind(s);
-        kindBox.append(el('span', { class: 'muted small', text: 'Isto é: ' }), ...REVIEW_KINDS.map(([id, label]) => el('button', { class: 'chip' + (cur === id ? ' on' : ''), text: label, title: 'A IA calibra a revisão para este gênero', onclick: () => { s.kind = id; App.touch(s); paintKind(); } }))); };
+        kindBox.append(el('span', { class: 'muted small', text: Book.is(s) ? 'Revisar como: ' : 'Isto é: ' }), ...REVIEW_KINDS.filter(k => Book.is(s) ? k[3] === 'book' : k[3] !== 'book').map(([id, label]) => el('button', { class: 'chip' + (cur === id ? ' on' : ''), text: label, title: 'A IA calibra a revisão para este gênero', onclick: () => { s.kind = id; App.touch(s); paintKind(); } }))); };
       paintKind();
       body.append(kindBox,
         el('p', { text: 'A revisão olha fidelidade ao texto, contexto, estrutura, aplicação, ilustrações, clareza e conclusão. Com as duas IAs, você vê onde elas concordam — e principalmente onde DISCORDAM, que é onde vale pensar.' }),
@@ -310,7 +318,7 @@ Notas de 0 a 10.`;
     if (ok.length) {
       const tbl = el('table', { class: 'rv-tbl' });
       tbl.append(el('tr', {}, el('th', { text: 'Critério' }), ...ok.map(p => el('th', { text: name(p) }))));
-      for (const [id, label] of REVIEW_CRITERIA) {
+      for (const [id, label] of criteriaFor(rev.kind)) {
         const cells = ok.map(p => (R[p].data.criterios || []).find(c => c.id === id) || {});
         const notas = cells.map(c => +c.nota).filter(n => !isNaN(n));
         const diverge = notas.length === 2 && Math.abs(notas[0] - notas[1]) >= 3;
@@ -338,7 +346,7 @@ Notas de 0 a 10.`;
 const ReviewChat = {
   system(kind) {
     const K = REVIEW_KINDS.find(k => k[0] === kind) || REVIEW_KINDS[0];
-    return `Você é o mesmo revisor homilético que avaliou o texto abaixo (gênero: ${K[1]}). O pastor está respondendo às suas observações.
+    return `Você é ${kind === 'beta' ? 'o mesmo leitor beta' : kind === 'capitulo' ? 'o mesmo editor de livros' : 'o mesmo revisor homilético'} que avaliou o texto abaixo (gênero: ${K[1]}). O pastor está respondendo às suas observações.
 Contexto da igreja: ${AI.cfg().church}
 Como responder:
 - Reavalie com honestidade. Se o argumento dele for bom (ex.: o gênero não pede aquilo, há uma razão pastoral, o contexto da igreja explica), RECONHEÇA claramente e diga o que muda na sua avaliação (qual nota/observação você ajustaria e para quanto).

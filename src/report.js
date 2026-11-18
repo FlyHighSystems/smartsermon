@@ -54,7 +54,7 @@ const PostReport = {
     const showList = () => {
       body.innerHTML = '';
       if (!list.length) { body.append(el('p', { class: 'muted', text: 'Ainda não há pregações registradas. No modo leitura, a duração de cada ponto é medida sozinha; toque em 🎙 para transcrever.' })); return; }
-      body.append(el('p', { class: 'muted', text: 'Cada vez que você usa o modo leitura por 3 minutos ou mais, o SmartSermon guarda quanto tempo passou em cada ponto (e a transcrição, se o 🎙 estiver ligado).' }));
+      body.append(el('p', { class: 'muted', text: 'Cada vez que você usa o modo leitura por 3 minutos ou mais, o SmartSower guarda quanto tempo passou em cada ponto (e a transcrição, se o 🎙 estiver ligado).' }));
       for (const { p, i } of list) body.append(el('button', { class: 'on-item', onclick: () => this.detail(body, s, i, showList) },
         el('b', { text: `${new Date(p.at || (p.date + 'T12:00')).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} · ${p.minutes} min` }),
         el('span', { class: 'muted small', text: [p.per ? 'tempo por ponto' : '', p.transcript?.length ? `transcrição (${p.transcript.length} trechos)` : '', p.analysis ? 'analisada' : '', p.calib === false ? 'não usada na estimativa' : 'usada na estimativa'].filter(Boolean).join(' · ') })));

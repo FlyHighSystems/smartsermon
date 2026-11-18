@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>SmartSermon — Leitura</title>
+<title>SmartSower — Leitura</title>
 <link rel="icon" href="icon-192.png">
 <style>
 :root{--bg:#ffffff;--fg:#1d1d1f;--muted:#6e6e73;--accent:#7719aa;--verse:#0f6cbd;--line:#e6e6e6;--card:#f6f5f8;color-scheme:light}
@@ -37,15 +37,15 @@ body.locked img{pointer-events:none}
 </head>
 <body>
 <div class="bar">
-  <span class="brand">SmartSermon</span>
+  <span class="brand">SmartSower</span>
   <button id="sm" title="Letra menor">A−</button><button id="bg" title="Letra maior">A+</button><button id="th" title="Tema">◐</button>
 </div>
 <main id="c"><div class="msg">Carregando…</div></main>
-<footer>Visualização somente leitura · SmartSermon</footer>
+<footer>Visualização somente leitura · SmartSower</footer>
 <script src="config.js"></script>
 <script>
 (function () {
-  var C = document.getElementById('c'), cfg = window.SMARTSERMON_CONFIG || {};
+  var C = document.getElementById('c'), cfg = window.SMARTSOWER_CONFIG || window.SMARTSERMON_CONFIG || {};
   var fs = +(localStorage.getItem('ler-fs') || 20), th = localStorage.getItem('ler-th') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   function apply() { document.documentElement.style.setProperty('--fs', fs + 'px'); document.body.dataset.theme = th; try { localStorage.setItem('ler-fs', fs); localStorage.setItem('ler-th', th); } catch (e) { } }
   apply();
@@ -77,7 +77,7 @@ body.locked img{pointer-events:none}
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (j) {
       if (!j || !j.data) return msg('Este link expirou, foi revogado ou não existe.');
-      document.title = j.data.title + ' — SmartSermon';
+      document.title = j.data.title + ' — SmartSower';
       C.innerHTML = clean(j.data.html || '');
       if (!j.allow_copy) {
         document.body.classList.add('locked');

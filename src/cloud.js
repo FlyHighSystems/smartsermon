@@ -8,7 +8,7 @@ const Cloud = {
   /* ---------- configuração ---------- */
   cfg() {
     let local = {}; try { local = JSON.parse(localStorage.getItem('ss-cloud') || '{}'); } catch (e) { }
-    const g = window.SMARTSERMON_CONFIG || {};
+    const g = window.SMARTSOWER_CONFIG || window.SMARTSERMON_CONFIG || {};
     const url = (local.url || g.supabaseUrl || '').trim().replace(/\/+$/, '');
     const key = (local.key || g.supabaseAnonKey || '').trim();
     return { url, key };
@@ -308,7 +308,7 @@ const CloudUI = {
     const c = Cloud.cfg();
     const url = el('input', { class: 'inp', placeholder: 'Project URL — https://xxxx.supabase.co', value: c.url });
     const key = el('input', { class: 'inp', placeholder: 'anon public key (chave pública)', value: c.key });
-    this.set(el('p', { html: 'Ligue o SmartSermon ao seu projeto do <b>Supabase</b>. Os dados ficam protegidos por login: cada pessoa só vê as próprias ministrações.' }),
+    this.set(el('p', { html: 'Ligue o SmartSower ao seu projeto do <b>Supabase</b>. Os dados ficam protegidos por login: cada pessoa só vê as próprias ministrações.' }),
       el('ol', { class: 'steps', html: '<li>No Supabase, abra o projeto › <b>SQL Editor</b> › cole o conteúdo do arquivo <code>supabase.sql</code> › <b>Run</b>.</li><li>Em <b>Project Settings › API</b>, copie a <b>Project URL</b> e a chave <b>anon public</b>.</li><li>Em <b>Authentication › URL Configuration</b>, coloque o endereço do app em <b>Site URL</b>: <code>' + esc(Cloud.redirect()) + '</code></li>' }),
       url, key, el('div', { class: 'row-btns', style: { marginTop: '10px' } }, el('button', { class: 'btn primary', text: 'Salvar', onclick: () => {
         if (!/^https:\/\/.+/.test(url.value.trim()) || key.value.trim().length < 20) return UI.toast('Confira a URL e a chave');

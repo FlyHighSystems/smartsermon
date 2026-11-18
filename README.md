@@ -1,4 +1,4 @@
-# SmartSermon
+# SmartSower
 
 **App:** https://smartsermon.sow.digital
 
@@ -24,7 +24,7 @@ O app é um único `index.html` sem dependências externas. O código-fonte est�
 2. Abra **SQL Editor**, cole o conteúdo de [`supabase.sql`](supabase.sql) e clique em **Run**. O script cria as tabelas, as regras de segurança (cada usuário só acessa os próprios dados) e o armazenamento de imagens.
 3. Em **Project Settings › API**, copie a **Project URL** e a chave **anon public**. Cole as duas em [`config.js`](config.js):
    ```js
-   window.SMARTSERMON_CONFIG = {
+   window.SMARTSOWER_CONFIG = {
      supabaseUrl: 'https://SEU-PROJETO.supabase.co',
      supabaseAnonKey: 'eyJ...'
    };
@@ -35,7 +35,7 @@ O app é um único `index.html` sem dependências externas. O código-fonte est�
 6. **Recomendado:** depois de criar a sua conta (e as da equipe), desative novos cadastros em **Authentication › Sign In / Providers › Allow new users to sign up**. Assim ninguém de fora consegue criar conta no seu projeto.
 7. *(Opcional)* Para entrar com Google, ative o provedor em **Authentication › Sign In / Providers › Google**. Isso exige um OAuth Client do Google Cloud.
 
-> **Plano gratuito do Supabase:** projetos sem uso por uma semana são pausados. Os dados ficam guardados, mas é preciso reativar o projeto no painel. Enquanto isso, o SmartSermon continua funcionando com a cópia local e sincroniza quando o projeto voltar.
+> **Plano gratuito do Supabase:** projetos sem uso por uma semana são pausados. Os dados ficam guardados, mas é preciso reativar o projeto no painel. Enquanto isso, o SmartSower continua funcionando com a cópia local e sincroniza quando o projeto voltar.
 
 ## 2. Publicar
 

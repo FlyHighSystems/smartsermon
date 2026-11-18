@@ -381,6 +381,7 @@ const DocxWriter = {
       if (b.type !== 'image' && b.type !== 'ink' && !htmlToText(b.html) && !b.ref) continue;
       if (b.type === 'point') body += para(run(`${++n}. ${htmlToText(b.html)}`), { style: 'Heading1' });
       else if (b.type === 'text') body += htmlParas(b.html);
+      else if (b.type === 'subhead') body += para(run(htmlToText(b.html), { b: 1 }), { style: 'Heading2' });
       else if (b.type === 'verse') { body += para(run((b.ref || 'Versículo') + (b.version ? ' (' + (Bible.info(b.version)?.short || '') + ')' : ''), { b: 1, color: '0F6CBD' }), { ind: 360, border: '0F6CBD', spacing: 0 }); body += htmlParas(b.html, { ind: 360, border: '0F6CBD' }, { i: 1 }); }
       else if (isCallout(b.type)) {
         const col = blockColor(b.type).replace('#', '').toUpperCase();
@@ -394,7 +395,7 @@ const DocxWriter = {
     const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>${media.map(m => `<Relationship Id="${m.id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="${m.name.replace('word/', '')}"/>`).join('')}</Relationships>`;
     const ct = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="jpeg" ContentType="image/jpeg"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`;
     const root = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>`;
-    const core = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${X(s.title)}</dc:title><dc:creator>SmartSermon</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString().slice(0, 19)}Z</dcterms:created></cp:coreProperties>`;
+    const core = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${X(s.title)}</dc:title><dc:creator>SmartSower</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString().slice(0, 19)}Z</dcterms:created></cp:coreProperties>`;
     const blob = zipStore([{ name: '[Content_Types].xml', data: ct }, { name: '_rels/.rels', data: root }, { name: 'docProps/core.xml', data: core }, { name: 'word/document.xml', data: docXml }, { name: 'word/styles.xml', data: styles }, { name: 'word/_rels/document.xml.rels', data: rels }, ...media.map(m => ({ name: m.name, data: m.data }))]);
     return new Blob([blob], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
   }
@@ -417,7 +418,7 @@ const Porter = {
           el('button', { class: 'btn', text: 'Importar caderno (várias seções)…', onclick: () => { m.close(); this.notebookImport(); } }))),
       el('div', { class: 'imp-card' }, el('h4', { text: '2. Copiar e colar' }), paste,
         el('button', { class: 'btn', text: 'Importar o conteúdo colado', onclick: () => { const items = htmlToItems(paste.innerHTML); if (!items.length) return UI.toast('Cole algo primeiro'); const r = itemsToSermon(items, 'Colado do OneNote'); App.newSermon({ title: r.title, blocks: r.blocks }); m.close(); } })),
-      el('div', { class: 'imp-card' }, el('h4', { text: '3. Backup do SmartSermon' }), el('p', { class: 'muted', text: 'Restaura um arquivo .json exportado por este app (mescla com o que já existe).' }),
+      el('div', { class: 'imp-card' }, el('h4', { text: '3. Backup do SmartSower' }), el('p', { class: 'muted', text: 'Restaura um arquivo .json exportado por este app (mescla com o que já existe).' }),
         el('button', { class: 'btn', text: 'Restaurar backup…', onclick: async () => { const [f] = await pickFiles('.json'); if (f) { m.close(); this.restore(f); } } })));
     paste.addEventListener('paste', e => { const h = e.clipboardData.getData('text/html'); if (h) { e.preventDefault(); paste.innerHTML = sanitizeHTML(h); } });
     const m = UI.modal({ title: 'Importar', body, wide: true });
@@ -534,6 +535,7 @@ const Porter = {
     for (const b of s.blocks) {
       if (b.type !== 'image' && b.type !== 'ink' && !htmlToText(b.html) && !b.ref) continue;
       if (b.type === 'point') P.append(Marks.tag(el('h2', { text: `${++n}. ${htmlToText(b.html)}` }), b));
+      else if (b.type === 'subhead') P.append(Marks.tag(el('h3', { text: htmlToText(b.html) }), b));
       else if (b.type === 'verse') P.append(Marks.tag(el('blockquote', { class: 'p-verse' }, el('b', { text: (b.ref || '') + (b.version ? ' (' + (Bible.info(b.version)?.short || '') + ')' : '') }), el('div', { html: b.html || '' })), b));
       else if (isCallout(b.type)) P.append(Marks.tag(el('div', { class: 'p-call p-' + b.type, style: { borderColor: blockColor(b.type) } }, el('small', { text: BLOCK_TYPES[b.type]?.label || '', style: { color: blockColor(b.type) } }), el('div', { html: b.html || '' })), b));
       else if (b.type === 'image') P.append(Marks.tag(el('figure', {}, el('img', { src: b.src }), b.html ? el('figcaption', { html: b.html }) : null), b));
@@ -545,12 +547,12 @@ const Porter = {
   },
   async backup() {
     App.flush();
-    const data = { app: 'smartsermon', version: 1, exported: new Date().toISOString(), meta: App.meta, sermons: [...App.sermons.values()] };
-    await saveFile(`smartsermon-backup-${todayISO()}.json`, new Blob([JSON.stringify(data)], { type: 'application/json' }));
+    const data = { app: 'smartsower', version: 1, exported: new Date().toISOString(), meta: App.meta, sermons: [...App.sermons.values()] };
+    await saveFile(`smartsower-backup-${todayISO()}.json`, new Blob([JSON.stringify(data)], { type: 'application/json' }));
   },
   async restore(file) {
     try {
-      const d = JSON.parse(await file.text()); if (!['smartsermon', 'ministrapad', 'pulpito'].includes(d.app)) throw new Error('Não é um backup do SmartSermon');
+      const d = JSON.parse(await file.text()); if (!['smartsower', 'smartsermon', 'ministrapad', 'pulpito'].includes(d.app)) throw new Error('Não é um backup do SmartSower');
       for (const nb of d.meta.notebooks) if (!App.meta.notebooks.some(x => x.id === nb.id)) App.meta.notebooks.push(nb);
       for (const sc of d.meta.sections) if (!App.meta.sections.some(x => x.id === sc.id)) App.meta.sections.push(sc);
       let n = 0; for (const s of d.sermons) { const cur = App.sermons.get(s.id); if (!cur || (s.updated || 0) > (cur.updated || 0)) { App.sermons.set(s.id, s); await DB.put('sermons', s.id, s); n++; } }

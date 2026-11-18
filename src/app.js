@@ -1,6 +1,7 @@
 /* ===== Estado, navegação (cadernos/seções/páginas) e editor ===== */
 const BLOCK_TYPES = {
   point: { label: 'Ponto', ph: 'Título do ponto' },
+  subhead: { label: 'Intertítulo', ph: 'Intertítulo' },
   text: { label: 'Texto', ph: 'Escreva aqui… (cole do OneNote, Word etc.)' },
   verse: { label: 'Versículo', ph: 'Texto do versículo' },
   illus: { label: 'Ilustração', ph: 'Conte a ilustração…' },
@@ -16,7 +17,7 @@ const CALLOUTS = ['intro', 'illus', 'app', 'quote', 'concl'];
 const CALLOUT_COLORS = { intro: '#4f6bed', illus: '#c25e00', app: '#107c10', quote: '#008575', concl: '#b4009e' };
 const isCallout = t => CALLOUTS.includes(t) || String(t).startsWith('c_');
 const blockColor = t => CALLOUT_COLORS[t] || (App.meta?.customTypes || []).find(c => c.id === t)?.color || '#8a8886';
-const TEXT_TYPES = () => ['point', 'text', ...CALLOUTS, ...(App.meta?.customTypes || []).map(c => c.id)];
+const TEXT_TYPES = () => ['point', 'subhead', 'text', ...CALLOUTS, ...(App.meta?.customTypes || []).map(c => c.id)];
 function registerCustomTypes() {
   for (const k of Object.keys(BLOCK_TYPES)) if (k.startsWith('c_')) delete BLOCK_TYPES[k];
   for (const c of App.meta.customTypes || []) BLOCK_TYPES[c.id] = { label: c.label, ph: c.ph || 'Escreva aqui…' };
@@ -122,7 +123,7 @@ const App = {
 
   /* ---- persistência ---- */
   pending: new Set(),
-  touch(s = this.cur) { if (!s) return; s.updated = Date.now(); this.pending.add(s.id); this._save(); if (s === this.cur) this._est(); Cloud.schedule(); },
+  touch(s = this.cur) { if (!s) return; s.updated = Date.now(); this.pending.add(s.id); this._save(); if (s === this.cur) { this._est(); if (Book.is(s)) Book.updateCount(); } History.tick(s); Cloud.schedule(); },
   _est: debounce(() => App.updateEstimate(), 400),
   updateEstimate() {
     const E = $('#s-est'); if (!E || !this.cur) return; const e = Estimate.sermon(this.cur);
@@ -139,6 +140,7 @@ const App = {
     $('#nb-add').onclick = () => {
       const m = UI.modal({ title: 'Novo caderno', body: el('div', { class: 'type-grid' },
         el('button', { class: 'on-item', onclick: () => { m.close(); newEmpty(); } }, el('b', { text: 'Caderno vazio' }), el('span', { class: 'muted small', text: 'Começar do zero' })),
+        el('button', { class: 'on-item', onclick: async () => { m.close(); const n = await UI.ask('Novo livro', '', 'Título do livro'); if (n) Book.create(n); } }, el('b', { text: '📖 Livro' }), el('span', { class: 'muted small', text: 'Partes, capítulos, metas, notas de rodapé e exportação do manuscrito' })),
         el('button', { class: 'on-item', onclick: () => { m.close(); Porter.notebookImport(); } }, el('b', { text: 'Importar caderno do OneNote' }), el('span', { class: 'muted small', text: 'Com as seções, a partir dos arquivos exportados' }))) });
     };
     const newEmpty = async () => { const n = await UI.ask('Novo caderno', '', 'Ex.: Conferência 2027'); if (!n) return; const nb = { id: uid(), name: n, color: SECTION_COLORS[this.meta.notebooks.length % 10] }; this.meta.notebooks.push(nb); const sec = { id: uid(), nb: nb.id, name: 'Geral', color: SECTION_COLORS[0] }; this.meta.sections.push(sec); this.meta.currentNb = nb.id; this.meta.currentSec = sec.id; this.saveMeta(); this.renderNav(); };
@@ -149,7 +151,7 @@ const App = {
     Search.init();
     $('#page-select').onclick = () => { this.selMode = !this.selMode; this.sel = new Set(); this.renderPages(); };
     $('#toggle-nav').onclick = () => document.body.classList.toggle('nav-collapsed');
-    EditorView.init(); Marks.init(); MarkSummary.init(); Spell.init();
+    EditorView.init(); Marks.init(); MarkSummary.init(); Spell.init(); Footnotes.init();
     $('#editor').addEventListener('pointerdown', () => { if (window.innerWidth < 980) document.body.classList.add('nav-collapsed'); });
     if (window.innerWidth < 980) document.body.classList.add('nav-collapsed');
   },
@@ -157,6 +159,10 @@ const App = {
     const nb = this.meta.notebooks.find(n => n.id === this.meta.currentNb); if (!nb) return;
     const m = UI.modal({ title: 'Caderno: ' + nb.name, body: '', actions: [
       { label: 'Renomear', onClick: async () => { const n = await UI.ask('Renomear caderno', nb.name); if (n) { nb.name = n; this.saveMeta(); this.renderNav(); } } },
+      { label: Book.isNb(nb) ? 'Voltar a caderno comum' : '📖 Transformar em livro', onClick: async () => {
+        if (Book.isNb(nb)) { if (!await UI.confirm('Voltar a caderno comum', 'As páginas continuam iguais; só some o modo livro (metas, quadro, exportação). Os dados do livro ficam guardados.', 'Voltar a caderno comum')) return; nb.kind = ''; }
+        else { nb.kind = 'book'; Book.info(nb); this.meta.sections.filter(x => x.nb === nb.id).forEach(x => Book.ensureOrder(x.id)); }
+        this.saveMeta(); this.renderNav(); this.renderEditor(); } },
       { label: 'Excluir caderno', danger: true, onClick: async () => {
         if (this.meta.notebooks.length < 2) { UI.toast('Mantenha pelo menos um caderno'); return; }
         if (!await UI.confirm('Excluir caderno', `Excluir “${nb.name}” e todas as suas ministrações?`)) return;
@@ -196,6 +202,7 @@ const App = {
     $('#pages-title').textContent = cs ? cs.name : '';
     document.documentElement.style.setProperty('--sec-color', cs?.color || '#7719aa');
     this.renderPages();
+    Book.navLabels();
   },
   /* ===== Ordem das seções ===== */
   moveSection(id, dir) {
@@ -262,7 +269,7 @@ const App = {
         hasKids ? el('button', { class: 'pg-tog', title: s.collapsed ? 'Mostrar subpáginas' : 'Recolher subpáginas', text: s.collapsed ? '▸' : '▾', onclick: e => { e.stopPropagation(); this.toggleCollapse(s.id); } }) : el('span', { class: 'pg-tog sp' }),
         el('div', { class: 'pg-main' },
           el('div', { class: 'page-title', text: (s.title || 'Sem título') + (s.collapsed && hasKids ? ' …' : '') }),
-          el('div', { class: 'page-sub', text: [s.date ? new Date(s.date + 'T12:00').toLocaleDateString('pt-BR') : '', preview].filter(Boolean).join(' · ') })),
+          Book.is(s) ? Book.pageSub(s) : el('div', { class: 'page-sub', text: [s.date ? new Date(s.date + 'T12:00').toLocaleDateString('pt-BR') : '', preview].filter(Boolean).join(' · ') })),
         q ? null : el('button', { class: 'pg-menu icon-btn sm', title: 'Ordem, subpágina, mover…', text: '⋯', onclick: e => { e.stopPropagation(); this.pageMenu(s); } }));
       if (!q) {
         row.addEventListener('dragover', e => { if (!this._drag || this._drag === s.id) return; e.preventDefault(); const r = row.getBoundingClientRect(); const after = e.clientY > r.top + r.height / 2; row.classList.toggle('drop-after', after); row.classList.toggle('drop-before', !after); });
@@ -309,6 +316,8 @@ const App = {
   },
   newSermon(data = {}) {
     if (!this.meta.currentSec) { UI.toast('Crie uma seção primeiro'); return; }
+    const inBook = Book.isNb(Book.nbOf(this.meta.currentSec));
+    if (inBook) { data = { ...Book.blankChapter(), ...data }; Book.ensureOrder(this.meta.currentSec); }
     const s = Object.assign(blankSermon(this.meta.currentSec), data);
     this.sermons.set(s.id, s);
     const l = this.sectionSermons(this.meta.currentSec);
@@ -330,7 +339,7 @@ const App = {
     if (sec && sec.id !== this.meta.currentSec) { this.meta.currentSec = sec.id; this.meta.currentNb = sec.nb; this.renderNav(); }
     this.saveMeta();
     $$('#page-list .page').forEach(p => p.classList.toggle('active', p.dataset.id === id));
-    this.renderEditor();
+    this.renderEditor(); History.snap(s, 'ao abrir');
     if (window.innerWidth < 980) document.body.classList.add('nav-collapsed');
   },
   async deleteSermon() {
@@ -350,54 +359,60 @@ const App = {
     const ed = $('#editor-inner'); ed.innerHTML = '';
     const s = this.cur;
     if (!s) { ed.append(el('div', { class: 'empty-state' }, el('h2', { text: 'Nenhuma ministração aberta' }), el('button', { class: 'btn primary', text: '+ Nova ministração', onclick: () => this.newSermon() }))); return; }
-    const secOpts = this.meta.sections.map(x => { const nb = this.meta.notebooks.find(n => n.id === x.nb); return `<option value="${x.id}" ${x.id === s.sec ? 'selected' : ''}>${esc(nb?.name || '')} › ${esc(x.name)}</option>`; }).join('');
-    const head = el('div', { class: 's-head' });
-    head.innerHTML = `
-      <input id="s-title" class="s-title" value="${esc(s.title)}" placeholder="Título da ministração">
-      <div class="s-meta">
-        <label>Data <input type="date" id="s-date" value="${esc(s.date || '')}"></label>
-        <label>Texto-base <input id="s-passage" value="${esc(s.passage || '')}" placeholder="Ex.: Rm 8:28-39"></label>
-        <label>Duração <input id="s-duration" type="number" min="0" max="240" value="${s.duration || ''}" style="width:4.2em"> min</label>
-        <span class="s-est" id="s-est"></span>
-        <label>Seção <select id="s-sec">${secOpts}</select></label>
-        <span class="s-actions">
-          <button class="btn sm ai-btn" id="s-review" title="Revisar com IA (Claude e Gemini) e conferir referências">✦ Revisar</button>
-          <button class="btn sm" id="s-report" title="Pregações registradas e relatório pós-culto">📊 Pregações${(s.preached || []).length ? ' (' + s.preached.length + ')' : ''}</button>
-          <button class="btn sm" id="s-share" title="Copiar para WhatsApp ou criar link de leitura">↗ Compartilhar</button>
-          <button class="btn sm" id="s-slide" title="Gerar imagem com o título para o telão ou redes sociais">🖼 Telão</button>
-          <button class="btn sm" id="s-move" title="Mover ou copiar para outra seção">⇢ Mover/Copiar</button>
-          <button class="btn sm" id="s-dup" title="Duplicar">Duplicar</button>
-          <button class="btn sm danger-text" id="s-del" title="Excluir">Excluir</button>
-        </span>
-      </div>`;
-    ed.append(head);
-    $('#s-title').oninput = e => { s.title = e.target.value; this.touch(); const p = $(`#page-list .page[data-id="${s.id}"] .page-title`); if (p) p.textContent = s.title || 'Sem título'; };
-    $('#s-title').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const f = $('#blocks .b-body'); f && f.focus(); } };
-    $('#s-date').onchange = e => { s.date = e.target.value; this.touch(); this.renderPages(); };
-    $('#s-passage').oninput = e => { s.passage = e.target.value; this.touch(); };
-    $('#s-passage').onchange = async e => {
-      const r = parseRef(e.target.value); if (!r || !Bible.current()) return;
-      if (s.blocks.some(b => b.type === 'verse' && b.ref === refLabel(r))) return;
-      UI.toast('Inserir o texto-base como versículo?', { label: 'Inserir', fn: async () => { const res = await Bible.lookup(r); if (!res.error) { this.insertBlock('verse', { ref: res.label, version: res.version, html: Bible.versesHTML(res.verses) }, -1); } } });
-    };
-    $('#s-duration').oninput = e => { s.duration = +e.target.value || 0; this.touch(); };
-    $('#s-sec').onchange = e => { s.sec = e.target.value; const sec = this.meta.sections.find(x => x.id === s.sec); this.meta.currentSec = sec.id; this.meta.currentNb = sec.nb; this.touch(); this.saveMeta(); this.renderNav(); };
-    $('#s-dup').onclick = () => this.duplicateSermon();
-    $('#s-share').onclick = () => { this.flush(); Share.open(s); };
-    $('#s-slide').onclick = () => { this.flush(); Slide.open(s); };
-    $('#s-move').onclick = async () => {
-      const r = await SectionPicker.pick(`“${s.title}”`, true); if (r) this.moveSermons([s.id], r.sec, r.copy);
-    };
-    $('#s-review').onclick = () => { this.flush(); Review.open(s); };
-    $('#s-report').onclick = () => PostReport.open(s);
-    $('#s-del').onclick = () => this.deleteSermon();
+    if (Book.is(s)) Book.renderHead(s, ed);
+    else {
+      const secOpts = this.meta.sections.map(x => { const nb = this.meta.notebooks.find(n => n.id === x.nb); return `<option value="${x.id}" ${x.id === s.sec ? 'selected' : ''}>${esc(nb?.name || '')} › ${esc(x.name)}</option>`; }).join('');
+      const head = el('div', { class: 's-head' });
+      head.innerHTML = `
+        <input id="s-title" class="s-title" value="${esc(s.title)}" placeholder="Título da ministração">
+        <div class="s-meta">
+          <label>Data <input type="date" id="s-date" value="${esc(s.date || '')}"></label>
+          <label>Texto-base <input id="s-passage" value="${esc(s.passage || '')}" placeholder="Ex.: Rm 8:28-39"></label>
+          <label>Duração <input id="s-duration" type="number" min="0" max="240" value="${s.duration || ''}" style="width:4.2em"> min</label>
+          <span class="s-est" id="s-est"></span>
+          <label>Seção <select id="s-sec">${secOpts}</select></label>
+          <span class="s-actions">
+            <button class="btn sm ai-btn" id="s-review" title="Revisar com IA (Claude e Gemini) e conferir referências">✦ Revisar</button>
+            <button class="btn sm" id="s-report" title="Pregações registradas e relatório pós-culto">📊 Pregações${(s.preached || []).length ? ' (' + s.preached.length + ')' : ''}</button>
+            <button class="btn sm" id="s-share" title="Copiar para WhatsApp ou criar link de leitura">↗ Compartilhar</button>
+            <button class="btn sm" id="s-slide" title="Gerar imagem com o título para o telão ou redes sociais">🖼 Telão</button>
+            <button class="btn sm" id="s-hist" title="Versões anteriores desta página">🕘 Versões</button>
+            <button class="btn sm" id="s-move" title="Mover ou copiar para outra seção">⇢ Mover/Copiar</button>
+            <button class="btn sm" id="s-dup" title="Duplicar">Duplicar</button>
+            <button class="btn sm danger-text" id="s-del" title="Excluir">Excluir</button>
+          </span>
+        </div>`;
+      ed.append(head);
+      $('#s-title').oninput = e => { s.title = e.target.value; this.touch(); const p = $(`#page-list .page[data-id="${s.id}"] .page-title`); if (p) p.textContent = s.title || 'Sem título'; };
+      $('#s-title').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const f = $('#blocks .b-body'); f && f.focus(); } };
+      $('#s-date').onchange = e => { s.date = e.target.value; this.touch(); this.renderPages(); };
+      $('#s-passage').oninput = e => { s.passage = e.target.value; this.touch(); };
+      $('#s-passage').onchange = async e => {
+        const r = parseRef(e.target.value); if (!r || !Bible.current()) return;
+        if (s.blocks.some(b => b.type === 'verse' && b.ref === refLabel(r))) return;
+        UI.toast('Inserir o texto-base como versículo?', { label: 'Inserir', fn: async () => { const res = await Bible.lookup(r); if (!res.error) { this.insertBlock('verse', { ref: res.label, version: res.version, html: Bible.versesHTML(res.verses) }, -1); } } });
+      };
+      $('#s-duration').oninput = e => { s.duration = +e.target.value || 0; this.touch(); };
+      $('#s-sec').onchange = e => { s.sec = e.target.value; const sec = this.meta.sections.find(x => x.id === s.sec); this.meta.currentSec = sec.id; this.meta.currentNb = sec.nb; this.touch(); this.saveMeta(); this.renderNav(); };
+      $('#s-dup').onclick = () => this.duplicateSermon();
+      $('#s-share').onclick = () => { this.flush(); Share.open(s); };
+      $('#s-slide').onclick = () => { this.flush(); Slide.open(s); };
+      $('#s-move').onclick = async () => {
+        const r = await SectionPicker.pick(`“${s.title}”`, true); if (r) this.moveSermons([s.id], r.sec, r.copy);
+      };
+      $('#s-review').onclick = () => { this.flush(); Review.open(s); };
+      $('#s-report').onclick = () => PostReport.open(s);
+      $('#s-del').onclick = () => this.deleteSermon();
+      $('#s-hist').onclick = () => { this.flush(); History.open(s); };
+    }
     ed.append(el('div', { id: 'blocks' }));
     this.updateEstimate();
-    const add = el('div', { class: 'add-bar' }, el('span', { class: 'muted', text: 'Adicionar:' }),
+    const add = Book.is(s) ? Book.addBar(s) : el('div', { class: 'add-bar' }, el('span', { class: 'muted', text: 'Adicionar:' }),
       ...['point', 'intro', 'text', 'verse', 'illus', 'app', 'quote', 'concl', ...(this.meta.customTypes || []).map(c => c.id), 'ink', 'image'].map(t => el('button', { class: 'chip t-' + t, style: isCallout(t) ? { color: blockColor(t) } : null, text: '+ ' + BLOCK_TYPES[t].label, onclick: () => t === 'image' ? Ribbon.insertImage(true) : this.insertBlock(t, {}, Infinity) })),
       el('button', { class: 'chip', text: '⚙ Tipos…', title: 'Criar ou editar seus próprios tipos de bloco', onclick: () => TypeManager.open() }));
     ed.append(add);
     this.renderBlocks();
+    if (Book.is(s)) Footnotes.renderList();
   },
   renderBlocks() {
     this.inkSurfaces.forEach(i => i.destroy()); this.inkSurfaces = [];
@@ -577,7 +592,7 @@ function blankSermon(sec) {
 }
 function welcomeSermon(sec) {
   const s = blankSermon(sec);
-  s.title = 'Bem-vindo ao SmartSermon'; s.passage = 'Sl 119:105'; s.welcome = true;
+  s.title = 'Bem-vindo ao SmartSower'; s.passage = 'Sl 119:105'; s.welcome = true;
   const B = (type, html, extra = {}) => ({ id: uid(), type, html, ...extra });
   s.blocks = [
     B('text', 'Este é um exemplo. Cada ministração é feita de <b>blocos</b>: pontos, textos, versículos, ilustrações, aplicações, frases-chave, desenhos e imagens. Use as setas ↑ ↓ de cada bloco para reorganizar.'),
@@ -616,7 +631,9 @@ function sanitizeHTML(html, inlineOnly = false) {
       }
       const keep = {};
       const color = st.match(/(?:^|;)\s*color:\s*([^;]+)/i), bg = st.match(/background(?:-color)?:\s*([^;]+)/i);
+      const fnNote = c.tagName === 'SUP' && c.classList.contains('fn') ? c.getAttribute('data-note') : null;
       [...c.attributes].forEach(a => c.removeAttribute(a.name));
+      if (fnNote != null) { c.className = 'fn'; c.setAttribute('data-note', fnNote); c.setAttribute('contenteditable', 'false'); c.textContent = ''; }
       if (c.tagName === 'SPAN' || c.tagName === 'MARK') {
         if (color && !/windowtext|black|#000000|rgb\(0,\s*0,\s*0\)/i.test(color[1])) keep.color = color[1];
         if (bg && !/white|transparent|#fff|initial/i.test(bg[1])) keep['background-color'] = bg[1];

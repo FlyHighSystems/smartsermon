@@ -66,6 +66,7 @@ const Reader = {
   blockEl(b, num) {
     const theme = Theme.reader();
     switch (b.type) {
+      case 'subhead': return el('h3', { class: 'r-subhead', html: b.html || '' });
       case 'point': return el('h2', { class: 'r-point', 'data-pid': b.id, html: `<span class="r-num">${num}.</span> ${b.html || ''}` });
       case 'verse': {
         const ver = b.version ? (Bible.info(b.version)?.short || '') : (b.verLabel || '');

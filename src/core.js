@@ -31,14 +31,14 @@ function htmlToText(html) {
 
 /* ===== IndexedDB com fallback em memória ===== */
 const DB = (() => {
-  let db = null; const mem = { sermons: new Map(), kv: new Map(), bibles: new Map(), images: new Map() };
+  let db = null; const mem = { sermons: new Map(), kv: new Map(), bibles: new Map(), images: new Map(), history: new Map() };
   const api = {
     volatile: false,
     async init() {
       try {
         db = await new Promise((res, rej) => {
-          const r = indexedDB.open('pulpito', 2);
-          r.onupgradeneeded = () => { const d = r.result; for (const s of ['sermons', 'kv', 'bibles', 'images']) if (!d.objectStoreNames.contains(s)) d.createObjectStore(s); };
+          const r = indexedDB.open('pulpito', 3);
+          r.onupgradeneeded = () => { const d = r.result; for (const s of ['sermons', 'kv', 'bibles', 'images', 'history']) if (!d.objectStoreNames.contains(s)) d.createObjectStore(s); };
           r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
           setTimeout(() => rej(new Error('timeout')), 4000);
         });

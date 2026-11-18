@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#7719aa">
 <meta name="color-scheme" content="light dark">
 <script>try{var m=JSON.parse(localStorage.getItem("mp-theme")||"null")||"auto";document.documentElement.dataset.theme=m==="auto"?(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"):m}catch(e){}</script>
-<title>SmartSermon</title>
+<title>SmartSower</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%237719aa'/%3E%3Cpath d='M46 22c-2-4-7-7-14-7-9 0-15 5-15 11 0 13 28 8 28 20 0 6-6 10-14 10-7 0-12-3-15-8' fill='none' stroke='%23fff' stroke-width='7' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>/*CSS*/</style>
@@ -14,7 +14,7 @@
 <body>
 <header class="topbar">
   <button class="icon-btn" id="toggle-nav" title="Mostrar/ocultar cadernos" aria-label="Menu">☰</button>
-  <div class="brand"><span class="logo">S</span> SmartSermon</div>
+  <div class="brand"><span class="logo">S</span> SmartSower</div>
   <nav class="rtabs">
     <button class="rtab on" data-tab="home">Página Inicial</button>
     <button class="rtab" data-tab="insert">Inserir</button>
@@ -59,6 +59,7 @@
       <button data-cmd="removeFormat" class="rb" title="Limpar formatação">Limpar</button>
     </div>
     <div class="rgroup">
+      <button id="rb-fn" class="rb" title="Nota de rodapé (Ctrl+Alt+N)">¹ Nota</button>
       <button id="rb-spell" class="rb" title="Ortografia e gramática (F7)">Abc ✓</button>
       <button id="rb-live" class="rb" title="Sublinhar erros enquanto digito (corretor do navegador)">〰</button>
     </div>

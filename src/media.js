@@ -24,7 +24,9 @@ const MARKS = [
   { id: 'optional',  label: 'Opcional (se der tempo)', color: '#69707d', emoji: '⏱️', ch: '◷',
     svg: '<circle cx="12" cy="12.6" r="6.6" fill="none" stroke-width="2.2"/><path d="M12 9v4l2.6 1.6M10 4.4h4" stroke-width="2.2" stroke-linecap="round"/>' },
   { id: 'warning',   label: 'Cuidado (tema sensível)', color: '#b7791f', emoji: '⚠️', ch: '△',
-    svg: '<path d="M12 5.2l7.4 13H4.6z" fill="none" stroke-width="2.2" stroke-linejoin="round"/><path d="M12 10v3.6" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="16.2" r="1.2" fill="#fff" stroke="none"/>' }
+    svg: '<path d="M12 5.2l7.4 13H4.6z" fill="none" stroke-width="2.2" stroke-linejoin="round"/><path d="M12 10v3.6" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="16.2" r="1.2" fill="#fff" stroke="none"/>' },
+  { id: 'book',      label: 'Para o livro',          color: '#8e562e', emoji: '📚', ch: 'L',
+    svg: '<path d="M12 7.6c-1.6-1.3-3.9-1.8-6.6-1.6v10.6c2.7-.2 5 .3 6.6 1.6 1.6-1.3 3.9-1.8 6.6-1.6V6c-2.7-.2-5 .3-6.6 1.6z" fill="none" stroke-width="1.9" stroke-linejoin="round"/><path d="M12 7.6v10.6" stroke-width="1.9"/>' }
 ];
 const Marks = {
   get: id => MARKS.find(m => m.id === id),
@@ -70,7 +72,7 @@ const Marks = {
     MARKS.forEach((m, i) => {
       const on = b.marks?.includes(m.id);
       box.append(el('button', { class: 'mk-item' + (on ? ' on' : ''), role: 'menuitemcheckbox', 'aria-checked': on ? 'true' : 'false', onclick: () => { this.toggle(b, m.id); box.remove(); } },
-        this.badge(m, 24), el('span', { class: 'mk-l', text: m.label }), el('kbd', { text: i < 9 ? 'Alt+' + (i + 1) : '' }), el('span', { class: 'mk-ck', text: on ? '✓' : '' })));
+        this.badge(m, 24), el('span', { class: 'mk-l', text: m.label }), el('kbd', { text: m.id === 'book' ? 'Alt+0' : i < 9 ? 'Alt+' + (i + 1) : '' }), el('span', { class: 'mk-ck', text: on ? '✓' : '' })));
     });
     if (b.marks?.length) box.append(el('button', { class: 'mk-item mk-clear', onclick: () => { delete b.marks; App.touch(); this.refresh(b); box.remove(); } }, el('span', { class: 'mk-l', text: 'Remover todas as marcações' })));
     document.body.append(box);
@@ -81,9 +83,9 @@ const Marks = {
   },
   init() {
     document.addEventListener('keydown', e => {
-      if (!e.altKey || e.ctrlKey || e.metaKey || !/^Digit[1-9]$/.test(e.code)) return;
+      if (!e.altKey || e.ctrlKey || e.metaKey || !/^Digit[0-9]$/.test(e.code)) return;
       const id = App.focusId; const b = App.cur?.blocks.find(x => x.id === id); if (!b || !$('#editor')?.offsetParent) return;
-      const m = MARKS[+e.code.slice(5) - 1]; if (!m) return;
+      const m = e.code === 'Digit0' ? this.get('book') : MARKS[+e.code.slice(5) - 1]; if (!m) return;
       e.preventDefault(); this.toggle(b, m.id); UI.toast((b.marks?.includes(m.id) ? 'Marcado: ' : 'Desmarcado: ') + m.label);
     });
   }
@@ -385,7 +387,7 @@ const ImageAI = {
    Sem chave usa a anônima (prioridade mais baixa). Uma chave grátis do aihorde.net dá prioridade. */
 const Horde = {
   API: 'https://aihorde.net/api/v2',
-  AGENT: 'SmartSermon:1.0:smartsermon.sow.digital',
+  AGENT: 'SmartSower:1.0:' + location.hostname,
   MODELS: ['AlbedoBase XL (SDXL)', 'Juggernaut XL', 'ICBINP XL', 'Dreamshaper XL'],
   SIZES: { '16:9': [1024, 576], '4:3': [1024, 768], '1:1': [1024, 1024], '9:16': [576, 1024] },
   NEG: 'text, letters, words, typography, caption, watermark, logo, signature, frame, border, nsfw, nude, gore, deformed, disfigured, extra fingers, blurry, lowres, jpeg artifacts',
@@ -451,7 +453,7 @@ const Pollinations = {
   url(prompt, fmt, seed) {
     const [w, h] = this.SIZES[fmt] || this.SIZES['16:9'];
     const p = encodeURIComponent(prompt + ', no text, no letters, no watermark');
-    const q = new URLSearchParams({ model: 'flux', width: w, height: h, seed, nologo: 'true', safe: 'true', private: 'true', enhance: 'false', referrer: 'smartsermon' });
+    const q = new URLSearchParams({ model: 'flux', width: w, height: h, seed, nologo: 'true', safe: 'true', private: 'true', enhance: 'false', referrer: 'smartsower' });
     const k = this.key();
     if (k) { q.set('key', k); return `https://gen.pollinations.ai/image/${p}?${q}`; }
     return `https://image.pollinations.ai/prompt/${p}?${q}`;
