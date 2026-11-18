@@ -545,3 +545,13 @@ body.in-book #nb-pane{background:color-mix(in srgb,#8e562e 7%,var(--panel2))}bod
 .sec-add-bk{margin:8px 10px;align-self:flex-start}
 .mk-item .mk-l b{display:block;font-weight:600}
 .sl-chips .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* Barra de formatação flutuante */
+.fbar{position:fixed;z-index:900;display:flex;align-items:center;gap:2px;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.18);opacity:0;pointer-events:none;transform:translateY(4px);transition:opacity .12s,transform .12s;flex-wrap:nowrap;max-width:calc(100vw - 16px);overflow-x:auto}
+.fbar.show{opacity:1;pointer-events:auto;transform:none}
+.fb-b{min-width:34px;height:34px;border:0;background:none;border-radius:8px;cursor:pointer;font-size:15px;color:inherit;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;font-family:Georgia,serif}
+.fb-b:hover{background:var(--panel2)}.fb-b.on{background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent)}
+.fb-sw{min-width:22px;width:22px;height:22px;border-radius:50%;margin:0 2px;border:1px solid rgba(0,0,0,.15)}.fb-sw.none{background:var(--panel2);font-size:12px}
+.fb-col{min-width:24px;font-weight:800;font-family:inherit}
+.fb-sep{width:1px;height:22px;background:var(--line);margin:0 3px;flex-shrink:0}
+@media print{.fbar{display:none}}

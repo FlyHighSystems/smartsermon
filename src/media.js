@@ -652,3 +652,49 @@ const PaneResize = {
     }
   }
 };
+
+/* ===== Barra de formatação flutuante: aparece ao selecionar texto no editor ===== */
+const FloatBar = {
+  HL: ['#fff100', '#7fff7f', '#7fdcff', '#ffb3e6'],
+  COL: ['#201f1e', '#c50f1f', '#0f6cbd', '#107c10', '#7719aa'],
+  touch: false,
+  exec(cmd, val = null, css = false) { document.execCommand('styleWithCSS', false, css); document.execCommand(cmd, false, val); this.paintState(); },
+  build() {
+    const B = (html, title, fn, cls = '') => { const b = el('button', { class: 'fb-b ' + cls, title, html }); b.addEventListener('pointerdown', e => e.preventDefault()); b.addEventListener('mousedown', e => e.preventDefault()); b.onclick = e => { e.preventDefault(); fn(); }; return b; };
+    const sep = () => el('span', { class: 'fb-sep' });
+    const bar = el('div', { class: 'fbar', role: 'toolbar', 'aria-label': 'Formatação' },
+      B('<b>N</b>', 'Negrito (Ctrl+B)', () => this.exec('bold'), 'st-bold'), B('<i>I</i>', 'Itálico (Ctrl+I)', () => this.exec('italic'), 'st-italic'),
+      B('<u>S</u>', 'Sublinhado (Ctrl+U)', () => this.exec('underline'), 'st-underline'), B('<s>ab</s>', 'Tachado', () => this.exec('strikeThrough'), 'st-strikeThrough'), sep(),
+      ...this.HL.map(c => B('', 'Marca-texto', () => this.exec('hiliteColor', c, true), 'fb-sw').tap(x => x.style.background = c)),
+      B('⌀', 'Tirar marca-texto', () => this.exec('hiliteColor', 'transparent', true), 'fb-sw none'), sep(),
+      ...this.COL.map(c => B('A', 'Cor do texto', () => this.exec('foreColor', c, true), 'fb-col').tap(x => x.style.color = c)), sep(),
+      B('•', 'Lista com marcadores', () => this.exec('insertUnorderedList')), B('1.', 'Lista numerada', () => this.exec('insertOrderedList')),
+      B('¹', 'Nota de rodapé no fim da seleção (Ctrl+Alt+N)', () => { const s = getSelection(); if (s.rangeCount) { const r = s.getRangeAt(0); r.collapse(false); s.removeAllRanges(); s.addRange(r); } this.hide(); Footnotes.insert(); }),
+      B('⨯', 'Limpar formatação', () => this.exec('removeFormat')));
+    document.body.append(bar); return bar;
+  },
+  paintState() { if (!this.bar) return; for (const c of ['bold', 'italic', 'underline', 'strikeThrough']) { try { this.bar.querySelector('.st-' + c)?.classList.toggle('on', document.queryCommandState(c)); } catch (e) { } } },
+  hide() { if (this.bar) this.bar.classList.remove('show'); },
+  update() {
+    const s = getSelection();
+    if (!s.rangeCount || s.isCollapsed) return this.hide();
+    const r = s.getRangeAt(0); const host = n => (n.nodeType === 1 ? n : n.parentElement)?.closest('#blocks .b-body[contenteditable]');
+    const h = host(r.startContainer); if (!h || h !== host(r.endContainer) || !r.toString().trim()) return this.hide();
+    this.bar ||= this.build(); this.paintState();
+    const rects = r.getClientRects(); const box = (rects.length ? rects[0] : r.getBoundingClientRect()); const last = rects.length ? rects[rects.length - 1] : box;
+    const bw = this.bar.offsetWidth || 420, bh = this.bar.offsetHeight || 40;
+    /* no toque, a barra vai para baixo da seleção (em cima fica o menu do sistema) */
+    let top = this.touch ? last.bottom + 12 : box.top - bh - 8; if (top < 56) top = last.bottom + 12; if (top + bh > innerHeight - 8) top = Math.max(56, box.top - bh - 8);
+    const left = Math.max(8, Math.min(innerWidth - bw - 8, (this.touch ? last.left : box.left) + (this.touch ? 0 : box.width / 2 - bw / 2)));
+    this.bar.style.top = top + 'px'; this.bar.style.left = left + 'px'; this.bar.classList.add('show');
+  },
+  init() {
+    if (!Element.prototype.tap) Object.defineProperty(Element.prototype, 'tap', { value(fn) { fn(this); return this; }, configurable: true });
+    const up = debounce(() => this.update(), 120);
+    document.addEventListener('selectionchange', up);
+    document.addEventListener('pointerdown', e => { this.touch = e.pointerType === 'touch' || e.pointerType === 'pen'; if (this.bar && !this.bar.contains(e.target)) this.hide(); }, true);
+    document.addEventListener('pointerup', up, true); document.addEventListener('keyup', e => { if (e.shiftKey || e.key.startsWith('Arrow')) up(); });
+    $('#editor')?.addEventListener('scroll', () => { if (this.bar?.classList.contains('show')) up(); }, { passive: true });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') this.hide(); });
+  }
+};
