@@ -151,7 +151,7 @@ const App = {
     Search.init();
     $('#page-select').onclick = () => { this.selMode = !this.selMode; this.sel = new Set(); this.renderPages(); };
     $('#toggle-nav').onclick = () => document.body.classList.toggle('nav-collapsed');
-    EditorView.init(); Marks.init(); MarkSummary.init(); Spell.init(); Footnotes.init();
+    EditorView.init(); Marks.init(); MarkSummary.init(); Spell.init(); Footnotes.init(); PaneResize.init();
     $('#editor').addEventListener('pointerdown', () => { if (window.innerWidth < 980) document.body.classList.add('nav-collapsed'); });
     if (window.innerWidth < 980) document.body.classList.add('nav-collapsed');
   },
@@ -282,7 +282,7 @@ const App = {
   },
   _bulk: null,
   renderBulk() {
-    const bar = $('#page-bulk'); bar.hidden = !this.selMode; $('#page-select').classList.toggle('on', !!this.selMode); $('#page-select').textContent = this.selMode ? '✕ Concluir' : '☑ Selecionar páginas';
+    const bar = $('#page-bulk'); bar.hidden = !this.selMode; $('#page-select').classList.toggle('on', !!this.selMode); $('#page-select').textContent = this.selMode ? '✕ Concluir' : '☑ Selecionar';
     if (!this.selMode) return;
     const n = this.sel.size; bar.innerHTML = '';
     const ids = () => [...this.sel];

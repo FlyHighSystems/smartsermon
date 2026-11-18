@@ -337,7 +337,7 @@ const MarkSummary = {
     setTimeout(() => { const n = $(`#blocks .block[data-id="${bid}"]`); if (!n) return; n.scrollIntoView({ behavior: 'smooth', block: 'center' }); n.classList.add('mk-flash'); setTimeout(() => n.classList.remove('mk-flash'), 1800); }, 80);
   },
   init() {
-    const tools = $('.page-tools'); if (tools && !$('#page-marks')) tools.append(el('button', { class: 'btn sm', id: 'page-marks', title: 'Resumo das marcações (Ctrl+Shift+M)', text: '🏷 Marcações', onclick: () => this.open() }));
+    const tools = $('.page-tools'); if (tools && !$('#page-marks')) tools.append(el('button', { class: 'btn sm', id: 'page-marks', title: 'Resumo das marcações (Ctrl+Shift+M)', text: '🏷 Marcas', onclick: () => this.open() }));
     document.addEventListener('keydown', e => { if (e.ctrlKey && e.shiftKey && (e.key === 'M' || e.key === 'm')) { e.preventDefault(); this.open(); } });
   }
 };
@@ -625,5 +625,30 @@ const Spell = {
     const rb = $('#rb-spell'); if (rb) rb.onclick = () => this.open();
     const lv = $('#rb-live'); if (lv) { const paint = () => lv.classList.toggle('on', this.live()); paint();
       lv.onclick = () => { this.setLive(!this.live()); paint(); UI.toast(this.live() ? 'Sublinhado ao digitar: ligado. Se TUDO ficar sublinhado, ative o Português (Brasil) na verificação ortográfica do navegador.' : 'Sublinhado ao digitar: desligado. Use F7 para verificar.'); }; }
+  }
+};
+
+/* ===== Larguras dos painéis de cadernos e páginas (por aparelho) ===== */
+const PaneResize = {
+  LIM: { 'nb-pane': [150, 420, '--nb-w'], 'pages-pane': [200, 560, '--pages-w'] },
+  load() { try { return JSON.parse(localStorage.getItem('ss-panes') || '{}'); } catch (e) { return {}; } },
+  save(v) { try { localStorage.setItem('ss-panes', JSON.stringify(v)); } catch (e) { } },
+  init() {
+    const v = this.load();
+    for (const [id, [min, max, cssVar]] of Object.entries(this.LIM)) {
+      const pane = document.getElementById(id); if (!pane || pane.querySelector('.pane-grip')) continue;
+      if (v[id]) document.documentElement.style.setProperty(cssVar, v[id] + 'px');
+      const grip = el('div', { class: 'pane-grip', title: 'Arraste para ajustar a largura · duplo clique volta ao padrão' });
+      grip.addEventListener('dblclick', () => { document.documentElement.style.removeProperty(cssVar); const x = this.load(); delete x[id]; this.save(x); });
+      grip.addEventListener('pointerdown', e => {
+        e.preventDefault(); grip.setPointerCapture(e.pointerId); grip.classList.add('on'); document.body.classList.add('resizing');
+        const x0 = e.clientX, w0 = pane.getBoundingClientRect().width;
+        const move = ev => { const w = Math.round(Math.min(max, Math.max(min, w0 + ev.clientX - x0))); document.documentElement.style.setProperty(cssVar, w + 'px'); };
+        const up = () => { grip.classList.remove('on'); document.body.classList.remove('resizing'); grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); grip.removeEventListener('pointercancel', up);
+          const x = this.load(); x[id] = Math.round(pane.getBoundingClientRect().width); this.save(x); };
+        grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up); grip.addEventListener('pointercancel', up);
+      });
+      pane.append(grip);
+    }
   }
 };

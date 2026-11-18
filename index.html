@@ -78,8 +78,8 @@ html[data-theme=dark] .b-body [style*="background-color"]{color:#111}
 
 /* Layout principal estilo OneNote */
 .main{flex:1;display:flex;min-height:0}
-#nb-pane{width:220px;background:var(--panel2);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:auto;flex-shrink:0}
-#pages-pane{width:260px;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;flex-shrink:0;border-top:4px solid var(--sec-color)}
+#nb-pane{width:var(--nb-w,220px);position:relative;background:var(--panel2);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:auto;flex-shrink:0}
+#pages-pane{width:var(--pages-w,260px);position:relative;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;flex-shrink:0;border-top:4px solid var(--sec-color)}
 .nav-collapsed #nb-pane,.nav-collapsed #pages-pane{display:none}
 .pane-head{display:flex;align-items:center;gap:4px;padding:8px}
 .pane-head select{flex:1;min-width:0;border:1px solid var(--line);border-radius:8px;padding:6px;background:var(--input);font-weight:600;min-height:34px}
@@ -247,10 +247,10 @@ a.ref{color:var(--rverse);text-decoration:underline dotted;text-underline-offset
 }
 
 /* Tablet / telas menores */
-@media (max-width:1180px){#nb-pane{width:190px}#pages-pane{width:230px}#bible-pane{width:340px}}
+@media (max-width:1180px){#nb-pane{width:var(--nb-w,190px)}#pages-pane{width:var(--pages-w,230px)}#bible-pane{width:340px}}
 @media (max-width:980px){
   #nb-pane,#pages-pane{position:absolute;top:100px;bottom:0;z-index:20;box-shadow:var(--shadow)}
-  #pages-pane{left:190px}#nb-pane{left:0}
+  #pages-pane{left:var(--nb-w,190px)}#nb-pane{left:0}
   #bible-pane{position:absolute;right:0;top:100px;bottom:0;z-index:21;box-shadow:-8px 0 30px rgba(0,0,0,.12)}
   #editor-inner{padding:16px 18px 120px}
   .rtab{padding:8px 10px}.brand{display:none}
@@ -340,7 +340,7 @@ a.ref{color:var(--rverse);text-decoration:underline dotted;text-underline-offset
 .r-live{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);max-width:80vw;background:rgba(0,0,0,.55);color:#fff;font-size:15px;padding:6px 12px;border-radius:8px;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* Mover/copiar */
-.page-tools{margin:0 8px 6px;justify-content:stretch}.page-tools .btn{width:100%}
+.page-tools{margin:0 8px 6px;flex-wrap:wrap}.page-tools .btn{flex:1 1 auto;min-width:0;white-space:nowrap;padding-left:8px;padding-right:8px;font-size:12.5px}
 .page-bulk .btn{min-height:30px}
 .seg-toggle{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:8px}
 .seg-toggle button{border:0;background:transparent;padding:6px 16px;min-height:34px}.seg-toggle button.on{background:var(--accent);color:#fff}
@@ -538,6 +538,12 @@ sup.fn{color:var(--accent);font-weight:700;cursor:pointer;padding:0 1px;user-sel
 .hs-view{max-height:65vh;overflow:auto}.hs-diff{font-size:14.5px;line-height:1.55;margin-top:10px}.hs-diff p{margin:0 0 .7em}.hs-same{color:var(--muted)}
 .hs-diff del{background:#fde7e9;color:#a4262c;text-decoration:line-through}.hs-diff ins{background:#dff6dd;color:#0b6a0b;text-decoration:none}
 @media (prefers-color-scheme:dark){.hs-diff del{background:#4a1d20;color:#ff9a9e}.hs-diff ins{background:#16391a;color:#9be59d}}
+
+/* Painéis redimensionáveis (arraste a borda; duplo clique volta ao padrão) */
+.pane-grip{position:absolute;top:0;right:0;width:7px;height:100%;cursor:col-resize;z-index:6;touch-action:none}
+.pane-grip::after{content:'';position:absolute;left:3px;top:0;bottom:0;width:2px;background:transparent;transition:background .15s}
+.pane-grip:hover::after,.pane-grip.on::after{background:var(--accent)}
+body.resizing{cursor:col-resize;user-select:none}body.resizing iframe{pointer-events:none}
 </style>
 </head>
 <body>
@@ -666,7 +672,7 @@ sup.fn{color:var(--accent);font-weight:700;cursor:pointer;padding:0 1px;user-sel
       <button class="btn sm primary" id="page-add" title="Nova ministração">＋ Página</button>
     </div>
     <input id="page-search" class="inp search" placeholder="Pesquisar em tudo…">
-    <div class="page-tools"><button class="btn sm" id="page-select" title="Selecionar várias páginas para mover, copiar ou excluir">☑ Selecionar páginas</button></div>
+    <div class="page-tools"><button class="btn sm" id="page-select" title="Selecionar várias páginas para mover, copiar ou excluir">☑ Selecionar</button></div>
     <div id="page-bulk" class="page-bulk" hidden></div>
     <button class="btn link onenote-link" id="page-import">⇪ Importar páginas do OneNote</button>
     <div id="page-list"></div>
@@ -1518,7 +1524,7 @@ const App = {
     Search.init();
     $('#page-select').onclick = () => { this.selMode = !this.selMode; this.sel = new Set(); this.renderPages(); };
     $('#toggle-nav').onclick = () => document.body.classList.toggle('nav-collapsed');
-    EditorView.init(); Marks.init(); MarkSummary.init(); Spell.init(); Footnotes.init();
+    EditorView.init(); Marks.init(); MarkSummary.init(); Spell.init(); Footnotes.init(); PaneResize.init();
     $('#editor').addEventListener('pointerdown', () => { if (window.innerWidth < 980) document.body.classList.add('nav-collapsed'); });
     if (window.innerWidth < 980) document.body.classList.add('nav-collapsed');
   },
@@ -1649,7 +1655,7 @@ const App = {
   },
   _bulk: null,
   renderBulk() {
-    const bar = $('#page-bulk'); bar.hidden = !this.selMode; $('#page-select').classList.toggle('on', !!this.selMode); $('#page-select').textContent = this.selMode ? '✕ Concluir' : '☑ Selecionar páginas';
+    const bar = $('#page-bulk'); bar.hidden = !this.selMode; $('#page-select').classList.toggle('on', !!this.selMode); $('#page-select').textContent = this.selMode ? '✕ Concluir' : '☑ Selecionar';
     if (!this.selMode) return;
     const n = this.sel.size; bar.innerHTML = '';
     const ids = () => [...this.sel];
@@ -5037,7 +5043,7 @@ const MarkSummary = {
     setTimeout(() => { const n = $(`#blocks .block[data-id="${bid}"]`); if (!n) return; n.scrollIntoView({ behavior: 'smooth', block: 'center' }); n.classList.add('mk-flash'); setTimeout(() => n.classList.remove('mk-flash'), 1800); }, 80);
   },
   init() {
-    const tools = $('.page-tools'); if (tools && !$('#page-marks')) tools.append(el('button', { class: 'btn sm', id: 'page-marks', title: 'Resumo das marcações (Ctrl+Shift+M)', text: '🏷 Marcações', onclick: () => this.open() }));
+    const tools = $('.page-tools'); if (tools && !$('#page-marks')) tools.append(el('button', { class: 'btn sm', id: 'page-marks', title: 'Resumo das marcações (Ctrl+Shift+M)', text: '🏷 Marcas', onclick: () => this.open() }));
     document.addEventListener('keydown', e => { if (e.ctrlKey && e.shiftKey && (e.key === 'M' || e.key === 'm')) { e.preventDefault(); this.open(); } });
   }
 };
@@ -5325,6 +5331,31 @@ const Spell = {
     const rb = $('#rb-spell'); if (rb) rb.onclick = () => this.open();
     const lv = $('#rb-live'); if (lv) { const paint = () => lv.classList.toggle('on', this.live()); paint();
       lv.onclick = () => { this.setLive(!this.live()); paint(); UI.toast(this.live() ? 'Sublinhado ao digitar: ligado. Se TUDO ficar sublinhado, ative o Português (Brasil) na verificação ortográfica do navegador.' : 'Sublinhado ao digitar: desligado. Use F7 para verificar.'); }; }
+  }
+};
+
+/* ===== Larguras dos painéis de cadernos e páginas (por aparelho) ===== */
+const PaneResize = {
+  LIM: { 'nb-pane': [150, 420, '--nb-w'], 'pages-pane': [200, 560, '--pages-w'] },
+  load() { try { return JSON.parse(localStorage.getItem('ss-panes') || '{}'); } catch (e) { return {}; } },
+  save(v) { try { localStorage.setItem('ss-panes', JSON.stringify(v)); } catch (e) { } },
+  init() {
+    const v = this.load();
+    for (const [id, [min, max, cssVar]] of Object.entries(this.LIM)) {
+      const pane = document.getElementById(id); if (!pane || pane.querySelector('.pane-grip')) continue;
+      if (v[id]) document.documentElement.style.setProperty(cssVar, v[id] + 'px');
+      const grip = el('div', { class: 'pane-grip', title: 'Arraste para ajustar a largura · duplo clique volta ao padrão' });
+      grip.addEventListener('dblclick', () => { document.documentElement.style.removeProperty(cssVar); const x = this.load(); delete x[id]; this.save(x); });
+      grip.addEventListener('pointerdown', e => {
+        e.preventDefault(); grip.setPointerCapture(e.pointerId); grip.classList.add('on'); document.body.classList.add('resizing');
+        const x0 = e.clientX, w0 = pane.getBoundingClientRect().width;
+        const move = ev => { const w = Math.round(Math.min(max, Math.max(min, w0 + ev.clientX - x0))); document.documentElement.style.setProperty(cssVar, w + 'px'); };
+        const up = () => { grip.classList.remove('on'); document.body.classList.remove('resizing'); grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); grip.removeEventListener('pointercancel', up);
+          const x = this.load(); x[id] = Math.round(pane.getBoundingClientRect().width); this.save(x); };
+        grip.addEventListener('pointermove', move); grip.addEventListener('pointerup', up); grip.addEventListener('pointercancel', up);
+      });
+      pane.append(grip);
+    }
   }
 };
 
