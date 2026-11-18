@@ -139,11 +139,11 @@ const App = {
     $('#nb-select').onchange = e => { this.meta.currentNb = e.target.value; const sec = this.meta.sections.find(s => s.nb === e.target.value); this.meta.currentSec = sec?.id || null; this.saveMeta(); this.renderNav(); };
     $('#nb-add').onclick = () => {
       const m = UI.modal({ title: 'Novo caderno', body: el('div', { class: 'type-grid' },
-        el('button', { class: 'on-item', onclick: () => { m.close(); newEmpty(); } }, el('b', { text: '🎤 Caderno de sermões' }), el('span', { class: 'muted small', text: 'Ministrações, estudos, devocionais' })),
+        el('button', { class: 'on-item', onclick: () => { m.close(); newEmpty(); } }, el('b', { text: '🎤 Caderno — ' + NbPanel.gname('ser') }), el('span', { class: 'muted small', text: 'Ministrações, devocionais, estudos, insights' })),
         el('button', { class: 'on-item', onclick: async () => { m.close(); const n = await UI.ask('Novo livro', '', 'Título do livro'); if (n) Book.create(n); } }, el('b', { text: '📖 Livro' }), el('span', { class: 'muted small', text: 'Partes, capítulos, metas, notas de rodapé e exportação do manuscrito' })),
         el('button', { class: 'on-item', onclick: () => { m.close(); Porter.notebookImport(); } }, el('b', { text: 'Importar caderno do OneNote' }), el('span', { class: 'muted small', text: 'Com as seções, a partir dos arquivos exportados' }))) });
     };
-    const newEmpty = async () => { const n = await UI.ask('Novo caderno de sermões', '', 'Ex.: Conferência 2027'); if (!n) return; const nb = { id: uid(), name: n, color: SECTION_COLORS[this.meta.notebooks.length % 10] }; this.meta.notebooks.push(nb); const sec = { id: uid(), nb: nb.id, name: 'Geral', color: SECTION_COLORS[0] }; this.meta.sections.push(sec); this.meta.currentNb = nb.id; this.meta.currentSec = sec.id; this.saveMeta(); this.renderNav(); };
+    const newEmpty = async () => { const n = await UI.ask('Novo caderno', '', 'Ex.: Conferência 2027'); if (!n) return; const nb = { id: uid(), name: n, color: SECTION_COLORS[this.meta.notebooks.length % 10] }; this.meta.notebooks.push(nb); const sec = { id: uid(), nb: nb.id, name: 'Geral', color: SECTION_COLORS[0] }; this.meta.sections.push(sec); this.meta.currentNb = nb.id; this.meta.currentSec = sec.id; this.saveMeta(); this.renderNav(); };
     $('#nb-menu').onclick = () => this.notebookMenu();
     $('#sec-add').onclick = $('#sec-add')._orig = async () => { const n = await UI.ask('Nova seção (série, tema, evento…)', ''); if (!n) return; const sec = { id: uid(), nb: this.meta.currentNb, name: n, color: SECTION_COLORS[this.meta.sections.length % 10] }; this.meta.sections.push(sec); this.meta.currentSec = sec.id; this.saveMeta(); this.renderNav(); };
     $('#page-add').onclick = () => this.newSermon();
@@ -179,8 +179,8 @@ const App = {
     { /* cadernos agrupados por tipo: sermões e livros */
       const opt = n => `<option value="${n.id}" ${n.id === m.currentNb ? 'selected' : ''}>${Book.isNb(n) ? '📖' : '🎤'} ${esc(n.name)}</option>`;
       const ser = m.notebooks.filter(n => !Book.isNb(n)), bks = m.notebooks.filter(n => Book.isNb(n));
-      $('#nb-select').innerHTML = bks.length ? `<optgroup label="Cadernos de sermões">${ser.map(opt).join('')}</optgroup><optgroup label="Livros">${bks.map(opt).join('')}</optgroup>` : ser.map(opt).join('');
-      $('#nb-select').title = Book.cur() ? 'Livro' : 'Caderno de sermões';
+      $('#nb-select').innerHTML = bks.length ? `<optgroup label="${esc(NbPanel.gname('ser'))}">${ser.map(opt).join('')}</optgroup><optgroup label="${esc(NbPanel.gname('book'))}">${bks.map(opt).join('')}</optgroup>` : ser.map(opt).join('');
+      $('#nb-select').title = NbPanel.gname(Book.cur() ? 'book' : 'ser');
       document.body.classList.toggle('in-book', !!Book.cur());
     }
     const secs = m.sections.filter(s => s.nb === m.currentNb);

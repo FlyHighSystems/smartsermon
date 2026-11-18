@@ -587,6 +587,8 @@ body.nb-pinned .nb-car{display:none}
 .nbc-row.d-before{box-shadow:inset 0 2px 0 var(--accent)}.nbc-row.d-after{box-shadow:inset 0 -2px 0 var(--accent)}
 @media (max-width:980px){body.nb-pinned #nb-col:not(.fly){display:none}body.nb-pinned .nb-car{display:inline}}
 #nb-col:not(.fly){top:auto!important;left:auto!important}
+
+.nbc-group{display:flex;align-items:center;gap:4px;cursor:default}.nbc-group span{flex:1}.nbc-ren{opacity:0;font-size:13px;width:26px;height:22px}.nbc-group:hover .nbc-ren{opacity:.8}
 </style>
 </head>
 <body>
@@ -1555,11 +1557,11 @@ const App = {
     $('#nb-select').onchange = e => { this.meta.currentNb = e.target.value; const sec = this.meta.sections.find(s => s.nb === e.target.value); this.meta.currentSec = sec?.id || null; this.saveMeta(); this.renderNav(); };
     $('#nb-add').onclick = () => {
       const m = UI.modal({ title: 'Novo caderno', body: el('div', { class: 'type-grid' },
-        el('button', { class: 'on-item', onclick: () => { m.close(); newEmpty(); } }, el('b', { text: '🎤 Caderno de sermões' }), el('span', { class: 'muted small', text: 'Ministrações, estudos, devocionais' })),
+        el('button', { class: 'on-item', onclick: () => { m.close(); newEmpty(); } }, el('b', { text: '🎤 Caderno — ' + NbPanel.gname('ser') }), el('span', { class: 'muted small', text: 'Ministrações, devocionais, estudos, insights' })),
         el('button', { class: 'on-item', onclick: async () => { m.close(); const n = await UI.ask('Novo livro', '', 'Título do livro'); if (n) Book.create(n); } }, el('b', { text: '📖 Livro' }), el('span', { class: 'muted small', text: 'Partes, capítulos, metas, notas de rodapé e exportação do manuscrito' })),
         el('button', { class: 'on-item', onclick: () => { m.close(); Porter.notebookImport(); } }, el('b', { text: 'Importar caderno do OneNote' }), el('span', { class: 'muted small', text: 'Com as seções, a partir dos arquivos exportados' }))) });
     };
-    const newEmpty = async () => { const n = await UI.ask('Novo caderno de sermões', '', 'Ex.: Conferência 2027'); if (!n) return; const nb = { id: uid(), name: n, color: SECTION_COLORS[this.meta.notebooks.length % 10] }; this.meta.notebooks.push(nb); const sec = { id: uid(), nb: nb.id, name: 'Geral', color: SECTION_COLORS[0] }; this.meta.sections.push(sec); this.meta.currentNb = nb.id; this.meta.currentSec = sec.id; this.saveMeta(); this.renderNav(); };
+    const newEmpty = async () => { const n = await UI.ask('Novo caderno', '', 'Ex.: Conferência 2027'); if (!n) return; const nb = { id: uid(), name: n, color: SECTION_COLORS[this.meta.notebooks.length % 10] }; this.meta.notebooks.push(nb); const sec = { id: uid(), nb: nb.id, name: 'Geral', color: SECTION_COLORS[0] }; this.meta.sections.push(sec); this.meta.currentNb = nb.id; this.meta.currentSec = sec.id; this.saveMeta(); this.renderNav(); };
     $('#nb-menu').onclick = () => this.notebookMenu();
     $('#sec-add').onclick = $('#sec-add')._orig = async () => { const n = await UI.ask('Nova seção (série, tema, evento…)', ''); if (!n) return; const sec = { id: uid(), nb: this.meta.currentNb, name: n, color: SECTION_COLORS[this.meta.sections.length % 10] }; this.meta.sections.push(sec); this.meta.currentSec = sec.id; this.saveMeta(); this.renderNav(); };
     $('#page-add').onclick = () => this.newSermon();
@@ -1595,8 +1597,8 @@ const App = {
     { /* cadernos agrupados por tipo: sermões e livros */
       const opt = n => `<option value="${n.id}" ${n.id === m.currentNb ? 'selected' : ''}>${Book.isNb(n) ? '📖' : '🎤'} ${esc(n.name)}</option>`;
       const ser = m.notebooks.filter(n => !Book.isNb(n)), bks = m.notebooks.filter(n => Book.isNb(n));
-      $('#nb-select').innerHTML = bks.length ? `<optgroup label="Cadernos de sermões">${ser.map(opt).join('')}</optgroup><optgroup label="Livros">${bks.map(opt).join('')}</optgroup>` : ser.map(opt).join('');
-      $('#nb-select').title = Book.cur() ? 'Livro' : 'Caderno de sermões';
+      $('#nb-select').innerHTML = bks.length ? `<optgroup label="${esc(NbPanel.gname('ser'))}">${ser.map(opt).join('')}</optgroup><optgroup label="${esc(NbPanel.gname('book'))}">${bks.map(opt).join('')}</optgroup>` : ser.map(opt).join('');
+      $('#nb-select').title = NbPanel.gname(Book.cur() ? 'book' : 'ser');
       document.body.classList.toggle('in-book', !!Book.cur());
     }
     const secs = m.sections.filter(s => s.nb === m.currentNb);
@@ -3674,7 +3676,7 @@ const Cloud = {
   /* Cadernos/seções/tipos: une por id; o mais recente vence nos itens em comum; exclusões viajam como lista */
   metaPayload() {
     const m = App.meta;
-    return { notebooks: m.notebooks, sections: m.sections, customTypes: m.customTypes || [], deleted: m.deleted || {}, theme: m.theme, readerTheme: m.readerTheme, readerSerif: !!m.readerSerif, dict: m.dict || [], ai: (typeof AI !== 'undefined' && AI.cloudPayload()) || undefined };
+    return { notebooks: m.notebooks, sections: m.sections, customTypes: m.customTypes || [], deleted: m.deleted || {}, theme: m.theme, readerTheme: m.readerTheme, readerSerif: !!m.readerSerif, dict: m.dict || [], groupNames: m.groupNames || {}, ai: (typeof AI !== 'undefined' && AI.cloudPayload()) || undefined };
   },
   async syncMeta() {
     const r = await this.rest('/rest/v1/user_meta?select=data,updated_at,server_updated');
@@ -3705,6 +3707,7 @@ const Cloud = {
       m.customTypes = merge(m.customTypes || [], rd.customTypes, 'customTypes');
       if (remote.updated_at > m.metaUpdated) { if (rd.theme) m.theme = rd.theme; if (rd.readerTheme) m.readerTheme = rd.readerTheme; if (rd.readerSerif != null) m.readerSerif = rd.readerSerif; }
       try { AI.fromCloud(rd.ai); } catch (e) { }
+      if (rd.groupNames && remote.updated_at > m.metaUpdated) m.groupNames = rd.groupNames;
       if (Array.isArray(rd.dict)) m.dict = [...new Set([...(m.dict || []), ...rd.dict])];
       this.st.lastMeta = remote.server_updated; changed = true;
       if (!m.notebooks.length) { const nb = { id: uid(), name: 'Ministrações', color: '#7719aa' }; m.notebooks.push(nb); }
@@ -6229,6 +6232,12 @@ Seja específico e honesto; não elogie à toa; notas de 0 a 10.`;
 /* ===================== LISTA DE CADERNOS (como no OneNote) =====================
    Fixada: vira uma coluna à esquerda. Solta: abre como menu flutuante. */
 const NbPanel = {
+  /* nomes dos dois grupos de cadernos (o usuário pode renomear; vai junto com a conta) */
+  gname(k) { return App.meta.groupNames?.[k] || (k === 'book' ? 'Livros' : 'Sermões'); },
+  async renameGroup(k) {
+    const n = await UI.ask('Renomear grupo', this.gname(k), k === 'book' ? 'Ex.: Livros, Escrita' : 'Ex.: Ministério, Pregações e devocionais'); if (!n?.trim()) return;
+    (App.meta.groupNames ||= {})[k] = n.trim(); App.saveMeta(); App.renderNav();
+  },
   pinned() { try { return localStorage.getItem('ss-nb-pin') === '1'; } catch (e) { return false; } },
   setPinned(v) { try { localStorage.setItem('ss-nb-pin', v ? '1' : '0'); } catch (e) { } document.body.classList.toggle('nb-pinned', v); this.close(); this.render(); },
   switchTo(id) {
@@ -6263,9 +6272,11 @@ const NbPanel = {
       el('button', { class: 'icon-btn sm', title: 'Novo caderno', text: '＋', onclick: () => { this.close(); $('#nb-add').click(); } }),
       el('button', { class: 'icon-btn sm nbc-pin' + (pin ? ' on' : ''), title: pin ? 'Desafixar (vira menu flutuante)' : 'Fixar como coluna', text: '📌', onclick: () => this.setPinned(!pin) })));
     const count = nb => { const secs = new Set(m.sections.filter(s => s.nb === nb.id).map(s => s.id)); let n = 0; for (const s of App.sermons.values()) if (secs.has(s.sec)) n++; return n; };
-    const group = (title, list) => {
+    const group = (k, list) => {
       if (!list.length) return;
-      this.col.append(el('div', { class: 'nbc-group', text: title }));
+      const g = el('div', { class: 'nbc-group', title: 'Duplo clique para renomear' }, el('span', { text: this.gname(k) }),
+        el('button', { class: 'icon-btn sm nbc-ren', title: 'Renomear grupo', text: '✎', onclick: e => { e.stopPropagation(); this.renameGroup(k); } }));
+      g.ondblclick = () => this.renameGroup(k); this.col.append(g);
       for (const nb of list) {
         const row = el('div', { class: 'nbc-row' + (nb.id === m.currentNb ? ' on' : ''), draggable: 'true', 'data-id': nb.id, title: nb.name, onclick: () => this.switchTo(nb.id) },
           el('span', { class: 'nb-ic', text: Book.isNb(nb) ? '📖' : '🎤' }), el('span', { class: 'nbc-name', text: nb.name }), el('span', { class: 'nbc-n', text: count(nb) }),
@@ -6280,7 +6291,7 @@ const NbPanel = {
         this.col.append(row);
       }
     };
-    group('Sermões', m.notebooks.filter(n => !Book.isNb(n))); group('Livros', m.notebooks.filter(n => Book.isNb(n)));
+    group('ser', m.notebooks.filter(n => !Book.isNb(n))); group('book', m.notebooks.filter(n => Book.isNb(n)));
   }
 };
 

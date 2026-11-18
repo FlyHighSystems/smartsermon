@@ -135,7 +135,7 @@ const Cloud = {
   /* Cadernos/seções/tipos: une por id; o mais recente vence nos itens em comum; exclusões viajam como lista */
   metaPayload() {
     const m = App.meta;
-    return { notebooks: m.notebooks, sections: m.sections, customTypes: m.customTypes || [], deleted: m.deleted || {}, theme: m.theme, readerTheme: m.readerTheme, readerSerif: !!m.readerSerif, dict: m.dict || [], ai: (typeof AI !== 'undefined' && AI.cloudPayload()) || undefined };
+    return { notebooks: m.notebooks, sections: m.sections, customTypes: m.customTypes || [], deleted: m.deleted || {}, theme: m.theme, readerTheme: m.readerTheme, readerSerif: !!m.readerSerif, dict: m.dict || [], groupNames: m.groupNames || {}, ai: (typeof AI !== 'undefined' && AI.cloudPayload()) || undefined };
   },
   async syncMeta() {
     const r = await this.rest('/rest/v1/user_meta?select=data,updated_at,server_updated');
@@ -166,6 +166,7 @@ const Cloud = {
       m.customTypes = merge(m.customTypes || [], rd.customTypes, 'customTypes');
       if (remote.updated_at > m.metaUpdated) { if (rd.theme) m.theme = rd.theme; if (rd.readerTheme) m.readerTheme = rd.readerTheme; if (rd.readerSerif != null) m.readerSerif = rd.readerSerif; }
       try { AI.fromCloud(rd.ai); } catch (e) { }
+      if (rd.groupNames && remote.updated_at > m.metaUpdated) m.groupNames = rd.groupNames;
       if (Array.isArray(rd.dict)) m.dict = [...new Set([...(m.dict || []), ...rd.dict])];
       this.st.lastMeta = remote.server_updated; changed = true;
       if (!m.notebooks.length) { const nb = { id: uid(), name: 'Ministrações', color: '#7719aa' }; m.notebooks.push(nb); }

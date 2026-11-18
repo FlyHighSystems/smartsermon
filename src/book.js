@@ -772,6 +772,12 @@ Seja específico e honesto; não elogie à toa; notas de 0 a 10.`;
 /* ===================== LISTA DE CADERNOS (como no OneNote) =====================
    Fixada: vira uma coluna à esquerda. Solta: abre como menu flutuante. */
 const NbPanel = {
+  /* nomes dos dois grupos de cadernos (o usuário pode renomear; vai junto com a conta) */
+  gname(k) { return App.meta.groupNames?.[k] || (k === 'book' ? 'Livros' : 'Sermões'); },
+  async renameGroup(k) {
+    const n = await UI.ask('Renomear grupo', this.gname(k), k === 'book' ? 'Ex.: Livros, Escrita' : 'Ex.: Ministério, Pregações e devocionais'); if (!n?.trim()) return;
+    (App.meta.groupNames ||= {})[k] = n.trim(); App.saveMeta(); App.renderNav();
+  },
   pinned() { try { return localStorage.getItem('ss-nb-pin') === '1'; } catch (e) { return false; } },
   setPinned(v) { try { localStorage.setItem('ss-nb-pin', v ? '1' : '0'); } catch (e) { } document.body.classList.toggle('nb-pinned', v); this.close(); this.render(); },
   switchTo(id) {
@@ -806,9 +812,11 @@ const NbPanel = {
       el('button', { class: 'icon-btn sm', title: 'Novo caderno', text: '＋', onclick: () => { this.close(); $('#nb-add').click(); } }),
       el('button', { class: 'icon-btn sm nbc-pin' + (pin ? ' on' : ''), title: pin ? 'Desafixar (vira menu flutuante)' : 'Fixar como coluna', text: '📌', onclick: () => this.setPinned(!pin) })));
     const count = nb => { const secs = new Set(m.sections.filter(s => s.nb === nb.id).map(s => s.id)); let n = 0; for (const s of App.sermons.values()) if (secs.has(s.sec)) n++; return n; };
-    const group = (title, list) => {
+    const group = (k, list) => {
       if (!list.length) return;
-      this.col.append(el('div', { class: 'nbc-group', text: title }));
+      const g = el('div', { class: 'nbc-group', title: 'Duplo clique para renomear' }, el('span', { text: this.gname(k) }),
+        el('button', { class: 'icon-btn sm nbc-ren', title: 'Renomear grupo', text: '✎', onclick: e => { e.stopPropagation(); this.renameGroup(k); } }));
+      g.ondblclick = () => this.renameGroup(k); this.col.append(g);
       for (const nb of list) {
         const row = el('div', { class: 'nbc-row' + (nb.id === m.currentNb ? ' on' : ''), draggable: 'true', 'data-id': nb.id, title: nb.name, onclick: () => this.switchTo(nb.id) },
           el('span', { class: 'nb-ic', text: Book.isNb(nb) ? '📖' : '🎤' }), el('span', { class: 'nbc-name', text: nb.name }), el('span', { class: 'nbc-n', text: count(nb) }),
@@ -823,6 +831,6 @@ const NbPanel = {
         this.col.append(row);
       }
     };
-    group('Sermões', m.notebooks.filter(n => !Book.isNb(n))); group('Livros', m.notebooks.filter(n => Book.isNb(n)));
+    group('ser', m.notebooks.filter(n => !Book.isNb(n))); group('book', m.notebooks.filter(n => Book.isNb(n)));
   }
 };
