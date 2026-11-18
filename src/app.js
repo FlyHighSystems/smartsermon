@@ -478,7 +478,7 @@ const App = {
     sel.value = value && Bible.has(value) ? value : (Bible.current() || '');
   },
   bindEditable(body, b) {
-    body.spellcheck = true; body.lang = 'pt-BR';
+    body.spellcheck = Spell.live(); body.lang = 'pt-BR';
     body.addEventListener('input', () => { b.html = body.innerHTML === '<br>' ? '' : body.innerHTML; this.touch(); });
     body.addEventListener('paste', e => {
       const html = e.clipboardData.getData('text/html');

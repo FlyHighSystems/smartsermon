@@ -485,13 +485,34 @@ const Spell = {
     const out = [];
     for (const w of document.querySelectorAll('#blocks .block')) {
       const b = App.cur?.blocks.find(x => x.id === w.dataset.id); if (!b || b.type === 'verse') continue;
-      for (const body of w.querySelectorAll('.b-body[contenteditable]')) {
-        const nodes = []; let text = ''; const tw = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
-        for (let n; (n = tw.nextNode());) { nodes.push({ n, start: text.length }); text += n.data; }
-        if (text.trim()) out.push({ b, body, nodes, text });
-      }
+      w.querySelectorAll('.b-body[contenteditable]').forEach((body, bi) => {
+        const { nodes, text } = this.scan(body);
+        if (text.trim()) out.push({ b, bi, body, nodes, text });
+      });
     }
     return out;
+  },
+  scan(body) {
+    const nodes = []; let text = ''; const tw = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+    for (let n; (n = tw.nextNode());) { nodes.push({ n, start: text.length }); text += n.data; }
+    return { nodes, text };
+  },
+  /* reencontra o trecho no texto ATUAL do bloco, pelo contexto em volta (não confia em posições antigas) */
+  locate(it) {
+    const w = $(`#blocks .block[data-id="${it.sg.b.id}"]`); const body = w && w.querySelectorAll('.b-body[contenteditable]')[it.sg.bi];
+    if (!body) return null;
+    const live = this.scan(body); const t = live.text; let best = null;
+    for (let i = t.indexOf(it.word); i >= 0; i = t.indexOf(it.word, i + 1)) {
+      let sb = 0; while (sb < it.before.length && t[i - 1 - sb] === it.before[it.before.length - 1 - sb]) sb++;
+      let sa = 0; while (sa < it.after.length && t[i + it.word.length + sa] === it.after[sa]) sa++;
+      const score = sb + sa - Math.abs(i - it.off) / 1000;
+      if (!best || score > best.score) best = { i, score, full: sb === it.before.length && sa === it.after.length, n: (best?.n || 0) + 1 };
+      else best.n++;
+    }
+    /* aceita se o contexto bate inteiro, ou bate em boa parte (uma correção vizinha pode tê-lo mudado), ou se só existe essa ocorrência */
+    const need = Math.min(12, Math.ceil((it.before.length + it.after.length) / 2));
+    if (!best || !(best.full || best.score >= need || best.n === 1)) return null;
+    return { body, ...live, off: best.i };
   },
   async check(text) {
     const r = await fetch(this.API, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -512,41 +533,59 @@ const Spell = {
     for (const bt of batches) {
       const ms = await this.check(bt.text);
       for (const m of ms) {
-        const part = bt.parts.find(p => m.offset >= p.at && m.offset + m.length <= p.at + p.sg.text.length); if (!part) continue;
-        const off = m.offset - part.at, word = part.sg.text.substr(off, m.length);
+        const part = bt.parts.find(p => m.offset >= p.at - 8 && m.offset <= p.at + p.sg.text.length); if (!part) continue;
+        let off = m.offset - part.at, word = part.sg.text.substr(off, m.length);
+        /* confere com o trecho que o próprio LanguageTool diz ter marcado; se as posições escorregaram (emoji etc.), reacha por perto */
+        const cw = m.context ? m.context.text.substr(m.context.offset, m.context.length) : null;
+        if (cw && cw !== word) {
+          let fix = -1; for (let d = 1; d <= 8 && fix < 0; d++) for (const k of [off - d, off + d]) if (k >= 0 && part.sg.text.substr(k, cw.length) === cw) { fix = k; break; }
+          if (fix < 0) continue; off = fix; word = cw;
+        }
         if (m.rule?.issueType === 'misspelling' && dict.has(word.toLowerCase())) continue;
-        issues.push({ sg: part.sg, off, len: m.length, word, msg: m.shortMessage || m.message, long: m.message, reps: (m.replacements || []).slice(0, 4).map(r => r.value), type: this.TYPES[m.rule?.issueType] ? m.rule.issueType : 'other', ctx: part.sg.text });
+        issues.push({ sg: part.sg, off, len: word.length, word, before: part.sg.text.slice(Math.max(0, off - 30), off), after: part.sg.text.substr(off + word.length, 30), msg: m.shortMessage || m.message, long: m.message, reps: (m.replacements || []).slice(0, 4).map(r => r.value), type: this.TYPES[m.rule?.issueType] ? m.rule.issueType : 'other', ctx: part.sg.text });
       }
     }
     return issues;
   },
-  range(sg, off, len) {
-    const end = off + len; let r = null; const N = sg.nodes;
-    for (let i = 0; i < N.length; i++) {
-      const { n, start } = N[i], s0 = start, s1 = start + n.data.length, last = i === N.length - 1;
+  range(nodes, off, len) {
+    const end = off + len; let r = null;
+    for (let i = 0; i < nodes.length; i++) {
+      const { n, start } = nodes[i], s0 = start, s1 = start + n.data.length, last = i === nodes.length - 1;
       if (!r && off >= s0 && (off < s1 || (off === s1 && last))) { r = new Range(); r.setStart(n, off - s0); }
-      if (r && end <= s1 && (end > s0 || len === 0 || end === s0 && n === r.startContainer)) { r.setEnd(n, end - s0); return r; }
+      if (r && end <= s1 && (end > s0 || len === 0 || n === r.startContainer)) { r.setEnd(n, end - s0); return r; }
     }
     return null;
   },
   paint(list) {
     if (!window.CSS?.highlights) return;
     for (const t of Object.keys(this.TYPES)) CSS.highlights.delete('ss-sp-' + t);
-    const by = {}; for (const it of list) { if (it.done) continue; const r = this.range(it.sg, it.off, it.len); if (r) (by[it.type] ||= []).push(r); }
+    const by = {}; for (const it of list) { if (it.done) continue; const L = this.locate(it); const r = L && this.range(L.nodes, L.off, it.len); if (r) (by[it.type] ||= []).push(r); }
     for (const [t, rs] of Object.entries(by)) CSS.highlights.set('ss-sp-' + t, new Highlight(...rs));
   },
   clear() { if (window.CSS?.highlights) for (const t of Object.keys(this.TYPES)) CSS.highlights.delete('ss-sp-' + t); },
-  apply(it, rep, list) {
-    const r = this.range(it.sg, it.off, it.len);
-    if (!r || r.toString() !== it.word) { UI.toast('O texto mudou desde a verificação — rode de novo (F7).'); return false; }
-    if (r.startContainer === r.endContainer && r.startContainer.nodeType === 3) r.startContainer.replaceData(r.startOffset, r.endOffset - r.startOffset, rep); // mantém negrito/cor
-    else { const first = r.startContainer; r.deleteContents(); if (first.nodeType === 3) first.insertData(r.startOffset, rep); else r.insertNode(document.createTextNode(rep)); }
-    it.sg.body.normalize(); it.sg.body.dispatchEvent(new Event('input', { bubbles: true }));
-    /* recalcula os nós e desloca as próximas ocorrências do mesmo bloco */
-    const delta = rep.length - it.len; const nodes = []; let text = ''; const tw = document.createTreeWalker(it.sg.body, NodeFilter.SHOW_TEXT);
-    for (let n; (n = tw.nextNode());) { nodes.push({ n, start: text.length }); text += n.data; }
-    it.sg.nodes = nodes; it.sg.text = text;
-    for (const o of list) if (o !== it && o.sg === it.sg && o.off > it.off) o.off += delta;
+  apply(it, rep, list = []) {
+    const L = this.locate(it);
+    /* posições atuais das outras sugestões do mesmo bloco, para atualizá-las depois */
+    const sib = list.filter(o => o !== it && !o.done && o.sg.b === it.sg.b && o.sg.bi === it.sg.bi).map(o => ({ o, L: this.locate(o) })).filter(x => x.L);
+    if (!L) { UI.toast('Não achei esse trecho igual no texto (ele mudou?). Rode a verificação de novo (F7).'); return false; }
+    /* troca caractere a caractere dentro dos próprios nós de texto: a formatação (negrito, cor, realce) fica onde estava */
+    let off = L.off, left = it.len, first = true;
+    for (const { n, start } of L.nodes) {
+      const s0 = start, s1 = start + n.data.length; if (s1 <= off || left <= 0) continue;
+      const a = off - s0, take = Math.min(left, s1 - off);
+      if (first) { n.replaceData(a, take, rep); first = false; } else n.deleteData(a, take);
+      left -= take; off += take;
+    }
+    if (first) return false;
+    /* remove elementos de formatação que ficaram vazios */
+    L.body.querySelectorAll('b,strong,i,em,u,s,span,font,mark').forEach(e => { if (!e.textContent && !e.querySelector('img,br')) e.remove(); });
+    const b = it.sg.b; b.html = L.body.innerHTML; App.touch();
+    const nt = this.scan(L.body).text, delta = rep.length - it.len;
+    for (const { o, L: l } of sib) {
+      if (l.off < L.off + it.len && l.off + o.len > L.off) { o.done = true; continue; } // sobrepunha a correção: já não vale
+      const p = l.off >= L.off + it.len ? l.off + delta : l.off;
+      o.off = p; o.before = nt.slice(Math.max(0, p - 30), p); o.after = nt.substr(p + o.len, 30);
+    }
     it.done = true; return true;
   },
   async open() {
@@ -564,7 +603,7 @@ const Spell = {
         const a = Math.max(0, it.off - 45), z = Math.min(it.ctx.length, it.off + it.len + 45);
         body.append(el('div', { class: 'sp-item', style: { '--sc': color } },
           el('div', { class: 'sp-top' }, el('span', { class: 'sp-type', text: label }), el('span', { class: 'sp-msg', text: it.msg || it.long, title: it.long })),
-          el('div', { class: 'sp-ctx', onclick: () => { const r = this.range(it.sg, it.off, it.len); r && it.sg.body.closest('.block').scrollIntoView({ behavior: 'smooth', block: 'center' }); } },
+          el('div', { class: 'sp-ctx', onclick: () => { $(`#blocks .block[data-id="${it.sg.b.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); } },
             (a > 0 ? '…' : '') + it.ctx.slice(a, it.off), el('mark', { text: it.word }), it.ctx.slice(it.off + it.len, z) + (z < it.ctx.length ? '…' : '')),
           el('div', { class: 'sp-acts' },
             ...it.reps.map(r => el('button', { class: 'chip sp-rep', text: r || '(apagar)', onclick: () => { if (this.apply(it, r, list)) render(); } })),
@@ -575,8 +614,14 @@ const Spell = {
     render();
     return m;
   },
+  /* corretor do navegador enquanto digita: por aparelho, desligado por padrão
+     (se o navegador não tiver o dicionário pt-BR, ele sublinha todas as palavras) */
+  live() { try { return localStorage.getItem('ss-livespell') === '1'; } catch (e) { return false; } },
+  setLive(v) { try { localStorage.setItem('ss-livespell', v ? '1' : '0'); } catch (e) { } if (App.cur) { App.flush(); App.renderEditor(); } },
   init() {
     document.addEventListener('keydown', e => { if (e.key === 'F7' && !e.ctrlKey && !e.altKey) { e.preventDefault(); this.open(); } });
     const rb = $('#rb-spell'); if (rb) rb.onclick = () => this.open();
+    const lv = $('#rb-live'); if (lv) { const paint = () => lv.classList.toggle('on', this.live()); paint();
+      lv.onclick = () => { this.setLive(!this.live()); paint(); UI.toast(this.live() ? 'Sublinhado ao digitar: ligado. Se TUDO ficar sublinhado, ative o Português (Brasil) na verificação ortográfica do navegador.' : 'Sublinhado ao digitar: desligado. Use F7 para verificar.'); }; }
   }
 };
