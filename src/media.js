@@ -211,7 +211,7 @@ const Slide = {
     const addThumb = (src, first) => { const t = el('img', { src, title: 'Usar esta imagem', onclick: () => { o.photo = src; redraw(); } }); first ? thumbs.prepend(t) : thumbs.append(t); };
     (Slide.gen || []).forEach(u => addThumb(u));
     const photoRow = el('div', { class: 'sl-photo' },
-      el('div', { class: 'sl-ai' }, el('b', { text: '✨ Fundo temático com IA' }), provChips,
+      el('div', { class: 'sl-ai' }, el('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' } }, el('b', { text: '✨ Fundo temático com IA' }), el('button', { class: 'btn link', text: '⚙ Chaves e modelos', onclick: () => AI.settings() })), provChips,
         el('span', { class: 'muted small', text: 'A IA cria só a imagem; o título é escrito por cima pelo app, com letra perfeita.' }),
         prompt, el('div', { style: { display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' } }, genBtn, cancelBtn, el('button', { class: 'btn sm', text: '↺ Descrição automática', onclick: resetPrompt }), genOut)),
       el('button', { class: 'btn sm', text: '📁 Escolher imagem…', onclick: async () => { const [f] = await pickFiles('image/*'); if (!f) return; o.photo = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(f); }); redraw(); } }),
