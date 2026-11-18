@@ -369,3 +369,6 @@ body.dragging #sec-list .sec{transition:background .15s}
 .st-dh{display:flex;gap:16px;align-items:center}.st-big{font-size:38px}
 .st-exp{background:var(--panel2);border-radius:10px;padding:10px 14px;margin-top:8px;line-height:1.55}
 .st-cred{margin-top:14px}
+
+.page.pressed,.sec.pressed{background:var(--accent-l);transition:background .1s}
+.page,.sec{-webkit-touch-callout:none;user-select:none}

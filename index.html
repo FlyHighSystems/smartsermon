@@ -380,6 +380,9 @@ body.dragging #sec-list .sec{transition:background .15s}
 .st-dh{display:flex;gap:16px;align-items:center}.st-big{font-size:38px}
 .st-exp{background:var(--panel2);border-radius:10px;padding:10px 14px;margin-top:8px;line-height:1.55}
 .st-cred{margin-top:14px}
+
+.page.pressed,.sec.pressed{background:var(--accent-l);transition:background .1s}
+.page,.sec{-webkit-touch-callout:none;user-select:none}
 </style>
 </head>
 <body>
@@ -1383,6 +1386,7 @@ const App = {
         el('span', { class: 'sec-dot' }), el('span', { class: 'sec-name', text: s.name }), el('span', { class: 'sec-count', text: count }),
         el('button', { class: 'icon-btn sm', title: 'Opções da seção', text: '⋯', onclick: e => { e.stopPropagation(); this.sectionMenu(s); } }));
       row.onclick = () => { m.currentSec = s.id; this.saveMeta(); this.renderNav(); const first = this.sectionSermons(s.id)[0]; if (first) this.open(first.id); };
+      bindContextMenu(row, () => this.sectionMenu(s));
       // soltar uma página arrastada aqui: move (segure Ctrl para copiar)
       row.addEventListener('dragover', e => { if (e.dataTransfer.types.includes('text/x-sermon')) { e.preventDefault(); e.dataTransfer.dropEffect = e.ctrlKey ? 'copy' : 'move'; row.classList.add('drop'); } });
       row.addEventListener('dragleave', () => row.classList.remove('drop'));
@@ -1441,6 +1445,7 @@ const App = {
         row.addEventListener('dragleave', () => row.classList.remove('drop-after', 'drop-before'));
         row.addEventListener('drop', e => { e.preventDefault(); const after = row.classList.contains('drop-after'); row.classList.remove('drop-after', 'drop-before'); const id = e.dataTransfer.getData('text/x-sermon'); if (id) this.dropPage(id, s.id, after); });
       }
+      if (!q) bindContextMenu(row, () => this.pageMenu(s));
       list.append(row);
     }
   },
@@ -1718,6 +1723,21 @@ const App = {
     b.type = t;
   },
 };
+
+/* Botão direito ou toque longo (dedo/caneta) abre um menu */
+function bindContextMenu(node, open) {
+  let t = null, x0 = 0, y0 = 0, fired = 0;
+  const fire = () => { const now = Date.now(); if (now - fired < 700) return; fired = now; open(); };
+  node.addEventListener('contextmenu', e => { e.preventDefault(); fire(); });
+  node.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse') return; x0 = e.clientX; y0 = e.clientY; clearTimeout(t);
+    t = setTimeout(() => { t = null; node.classList.add('pressed'); setTimeout(() => node.classList.remove('pressed'), 200); try { navigator.vibrate && navigator.vibrate(15); } catch (_) { } fire(); }, 550);
+  });
+  node.addEventListener('pointermove', e => { if (t && Math.hypot(e.clientX - x0, e.clientY - y0) > 10) { clearTimeout(t); t = null; } });
+  ['pointerup', 'pointercancel', 'pointerleave', 'dragstart'].forEach(ev => node.addEventListener(ev, () => { clearTimeout(t); t = null; }));
+  // depois do toque longo, ignora o "clique" que vem em seguida
+  node.addEventListener('click', e => { if (Date.now() - fired < 700) { e.stopPropagation(); e.preventDefault(); } }, true);
+}
 
 function blankSermon(sec) {
   return { id: uid(), sec, title: 'Nova ministração', date: todayISO(), passage: '', duration: 40,
