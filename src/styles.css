@@ -466,3 +466,19 @@ a.btn{text-decoration:none;display:inline-flex;align-items:center;color:inherit}
 .sp-ctx{margin:6px 0;font-size:15px;line-height:1.5;cursor:pointer}.sp-ctx mark{background:color-mix(in srgb,var(--sc) 22%,transparent);color:inherit;border-bottom:2px solid var(--sc);padding:0 1px}
 .sp-acts{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.sp-rep{font-weight:600}
 #rb-live.on{background:var(--panel2);box-shadow:inset 0 -2px 0 var(--accent)}
+
+/* Revisão: gênero e conversa */
+.rv-kind{align-items:center;margin-bottom:6px}.rv-kind .chip.on,.rvc .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.rv-nota.nx{background:var(--panel2);color:var(--muted)}
+.rv-reply{border:0;background:none;cursor:pointer;font-size:13px;opacity:.45;padding:2px 4px;border-radius:6px;vertical-align:middle}.rv-reply:hover{opacity:1;background:var(--panel2)}
+.rvc{margin-top:18px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
+.rvc h4{margin:0 0 4px}
+.rvc-log{display:flex;flex-direction:column;gap:8px;margin:10px 0}
+.rvc-msg{max-width:88%;padding:8px 12px;border-radius:12px;background:var(--panel);border:1px solid var(--line);font-size:14.5px;line-height:1.45;white-space:pre-wrap}
+.rvc-msg.user{align-self:flex-end;background:color-mix(in srgb,var(--accent) 14%,var(--panel));border-color:color-mix(in srgb,var(--accent) 35%,var(--line))}
+.rvc-msg.wait .rvc-t{opacity:.6;font-style:italic}
+.rvc-who{font-size:11px;font-weight:700;color:var(--muted);margin-bottom:2px}
+.rvc-q{font-size:12.5px;color:var(--muted);border-left:3px solid var(--line);padding-left:8px;margin:2px 0 6px;white-space:normal}
+.rvc-quote{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;font-size:13px;color:var(--muted);border-left:3px solid var(--accent);padding:4px 8px;margin:6px 0;background:var(--panel);border-radius:0 8px 8px 0}
+.rvc textarea{width:100%;margin-top:6px}
+.rvc textarea{font-family:inherit;font-size:14.5px;line-height:1.45}

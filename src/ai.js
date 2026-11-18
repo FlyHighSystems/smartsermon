@@ -205,14 +205,24 @@ async function checkReferences(s) {
 }
 
 /* ===== Revisão do sermão ===== */
+const REVIEW_KINDS = [
+  ['sermao', 'Sermão (culto)', 'Mensagem completa para o culto: avalie todos os critérios normalmente.'],
+  ['devocional', 'Devocional curta', 'Texto devocional CURTO (2 a 5 minutos de leitura) para edificação pessoal. NÃO cobre estrutura de sermão, várias ilustrações, apelo formal ou contexto exaustivo. Avalie proporcionalmente ao gênero: clareza, fidelidade, uma ideia central bem aplicada. Se um critério não se aplica a uma devocional, use "nota": null e diga "não se aplica a uma devocional".'],
+  ['estudo', 'Estudo bíblico', 'Estudo bíblico de ensino: pese mais fidelidade, contexto e clareza didática; apelo emocional não é esperado.'],
+  ['celula', 'Palavra para célula / PG', 'Palavra curta para pequeno grupo: deve gerar conversa e aplicação; perguntas para o grupo valem mais que oratória. Critérios que não se aplicam: "nota": null.'],
+  ['outro', 'Outro', 'Gênero livre: adapte os critérios ao propósito do texto e use "nota": null quando um critério não se aplicar.']
+];
+const reviewKind = s => s.kind || (() => { const n = (App.meta.sections.find(x => x.id === s.sec)?.name || '').toLowerCase(); return /devoc/.test(n) ? 'devocional' : /estud/.test(n) ? 'estudo' : /c[eé]lula|pg|pequeno/.test(n) ? 'celula' : 'sermao'; })();
 const REVIEW_CRITERIA = [
   ['texto', 'Fidelidade ao texto bíblico'], ['contexto', 'Contexto histórico e literário'], ['estrutura', 'Estrutura e progressão'],
   ['aplicacao', 'Aplicação prática'], ['ilustracoes', 'Ilustrações'], ['clareza', 'Clareza para o público'], ['conclusao', 'Conclusão e apelo']
 ];
 const Review = {
-  system() {
+  system(kind = 'sermao') {
+    const K = REVIEW_KINDS.find(k => k[0] === kind) || REVIEW_KINDS[0];
     return `Você é um revisor homilético experiente, com formação em exegese bíblica (hebraico e grego), teologia e comunicação. Você ajuda um pastor a MELHORAR o próprio sermão — você não reescreve o sermão por ele.
 Contexto da igreja: ${AI.cfg().church}
+GÊNERO DO TEXTO: ${K[1]}. ${K[2]}
 Regras:
 - Seja honesto e específico; aponte problemas reais (eisegese, texto fora de contexto, afirmações históricas duvidosas, saltos lógicos, aplicações vagas). Elogios só quando merecidos.
 - Respeite a tradição evangélica do pastor; quando houver divergência teológica legítima entre tradições, diga isso em vez de tratar como erro.
@@ -228,20 +238,20 @@ Responda SOMENTE com JSON válido neste formato:
 Notas de 0 a 10.`;
   },
   async run(s, providers, onStep) {
-    const text = AI.sermonText(s);
-    const user = `Revise este sermão:\n\n${text}`;
+    const text = AI.sermonText(s); const kind = reviewKind(s); const K = REVIEW_KINDS.find(k => k[0] === kind);
+    const user = `Revise este texto (gênero: ${K[1]}):\n\n${text}`;
     const tasks = providers.map(async p => {
       onStep && onStep(p, 'run');
       try {
-        let r; try { r = AI.parseJSON(await AI.ask(p, this.system(), user)); }
-        catch (e) { if (!/mal formatada|vazia/.test(e.message)) throw e; onStep && onStep(p, 'retry'); r = AI.parseJSON(await AI.ask(p, this.system(), user + '\n\nATENÇÃO: responda com JSON estritamente válido. Dentro dos textos, use aspas simples (\') em vez de aspas duplas.')); }
+        let r; try { r = AI.parseJSON(await AI.ask(p, this.system(kind), user)); }
+        catch (e) { if (!/mal formatada|vazia/.test(e.message)) throw e; onStep && onStep(p, 'retry'); r = AI.parseJSON(await AI.ask(p, this.system(kind), user + '\n\nATENÇÃO: responda com JSON estritamente válido. Dentro dos textos, use aspas simples (\') em vez de aspas duplas.')); }
         onStep && onStep(p, 'ok'); return [p, { ok: true, data: r }];
       }
       catch (e) { onStep && onStep(p, 'err'); return [p, { ok: false, error: e.message }]; }
     });
     const refs = await checkReferences(s);
     const results = Object.fromEntries(await Promise.all(tasks));
-    const rev = { at: Date.now(), providers, refs, results, models: { claude: AI.cfg().claudeModel, gemini: AI.cfg().geminiModel } };
+    const rev = { at: Date.now(), kind, providers, refs, results, chat: [], models: { claude: AI.cfg().claudeModel, gemini: AI.cfg().geminiModel } };
     (s.reviews ||= []).unshift(rev); s.reviews = s.reviews.slice(0, 10); App.touch(s);
     return rev;
   },
@@ -253,7 +263,11 @@ Notas de 0 a 10.`;
       body.innerHTML = '';
       const cl = el('input', { type: 'checkbox', checked: AI.has('claude'), disabled: !AI.has('claude') });
       const gm = el('input', { type: 'checkbox', checked: AI.has('gemini'), disabled: !AI.has('gemini') });
-      body.append(
+      const kindBox = el('div', { class: 'sl-chips rv-kind' });
+      const paintKind = () => { kindBox.innerHTML = ''; const cur = reviewKind(s);
+        kindBox.append(el('span', { class: 'muted small', text: 'Isto é: ' }), ...REVIEW_KINDS.map(([id, label]) => el('button', { class: 'chip' + (cur === id ? ' on' : ''), text: label, title: 'A IA calibra a revisão para este gênero', onclick: () => { s.kind = id; App.touch(s); paintKind(); } }))); };
+      paintKind();
+      body.append(kindBox,
         el('p', { text: 'A revisão olha fidelidade ao texto, contexto, estrutura, aplicação, ilustrações, clareza e conclusão. Com as duas IAs, você vê onde elas concordam — e principalmente onde DISCORDAM, que é onde vale pensar.' }),
         el('div', { class: 'row-btns', style: { flexWrap: 'wrap', alignItems: 'center' } },
           el('label', { class: 'on-check' }, cl, ' Claude'), el('label', { class: 'on-check' }, gm, ' Gemini'),
@@ -280,10 +294,12 @@ Notas de 0 a 10.`;
     const P = rev.providers, R = rev.results;
     const name = p => p === 'claude' ? 'Claude' : 'Gemini';
     body.append(el('div', { class: 'row-btns', style: { justifyContent: 'space-between' } },
-      el('span', { class: 'muted small', text: `Revisão de ${new Date(rev.at).toLocaleString('pt-BR')}` }),
+      el('span', { class: 'muted small', text: `Revisão de ${new Date(rev.at).toLocaleString('pt-BR')}` + (rev.kind ? ' · ' + (REVIEW_KINDS.find(k => k[0] === rev.kind)?.[1] || '') : '') }),
       el('button', { class: 'btn sm', text: '↻ Nova revisão', onclick: back })));
     for (const p of P) if (!R[p]?.ok) body.append(el('p', { class: 'on-log', text: `⚠ ${name(p)}: ${R[p]?.error || 'falhou'}` }));
     const ok = P.filter(p => R[p]?.ok);
+    const chat = ReviewChat.build(rev, s, ok);
+    const q = (p, text) => el('button', { class: 'rv-reply', title: 'Responder a este ponto', text: '💬', onclick: () => chat.quote(p, text) });
     // Resumo
     for (const p of ok) if (R[p].data.resumo) body.append(el('div', { class: 'rv-sum' }, el('b', { text: name(p) + ': ' }), R[p].data.resumo));
     // Referências
@@ -300,18 +316,73 @@ Notas de 0 a 10.`;
         const diverge = notas.length === 2 && Math.abs(notas[0] - notas[1]) >= 3;
         tbl.append(el('tr', { class: diverge ? 'rv-div' : '' },
           el('td', {}, el('b', { text: label }), diverge ? el('div', { class: 'rv-flag', text: '⚠ as IAs discordam — vale pensar aqui' }) : null),
-          ...cells.map(c => el('td', {}, el('span', { class: 'rv-nota n' + Math.round((+c.nota || 0) / 2.5), text: c.nota ?? '–' }), el('div', { text: c.comentario || '' }), c.sugestao ? el('div', { class: 'rv-sug', text: '→ ' + c.sugestao }) : null))));
+          ...cells.map((c, i) => el('td', {}, el('span', { class: 'rv-nota n' + (c.nota == null ? 'x' : Math.round((+c.nota || 0) / 2.5)), text: c.nota ?? 'n/a' }), q(ok[i], `${label} (nota ${c.nota ?? 'n/a'}): ${c.comentario || ''}`), el('div', { text: c.comentario || '' }), c.sugestao ? el('div', { class: 'rv-sug', text: '→ ' + c.sugestao }) : null))));
       }
       body.append(el('h4', { text: 'Avaliação por critério' }), tbl);
       const list = (key, title, fmt) => {
         const items = ok.flatMap(p => (R[p].data[key] || []).map(x => [p, x])); if (!items.length) return;
-        body.append(el('h4', { text: title }), el('ul', { class: 'rv-list' }, items.map(([p, x]) => el('li', {}, el('span', { class: 'pill', text: name(p) }), ' ', fmt(x)))));
+        const plain = x => typeof x === 'string' ? x : [x.trecho && `“${x.trecho}”`, x.problema, x.sugestao && '→ ' + x.sugestao].filter(Boolean).join(' — ');
+        body.append(el('h4', { text: title }), el('ul', { class: 'rv-list' }, items.map(([p, x]) => el('li', {}, el('span', { class: 'pill', text: name(p) }), ' ', fmt(x), ' ', q(p, `${title}: ${plain(x)}`)))));
       };
-      list('melhorias_prioritarias', 'O que mais melhoraria o sermão', x => x);
+      list('melhorias_prioritarias', 'O que mais melhoraria o texto', x => x);
       list('riscos', 'Pontos de atenção', x => el('span', {}, x.trecho ? el('i', { text: `“${x.trecho}” — ` }) : null, x.problema || '', x.sugestao ? el('div', { class: 'rv-sug', text: '→ ' + x.sugestao }) : null));
       list('pontos_fortes', 'Pontos fortes', x => x);
       list('perguntas_ouvinte_cetico', 'Perguntas de um ouvinte crítico', x => x);
     }
+    if (ok.length) body.append(chat.el);
     body.append(el('p', { class: 'muted small', text: 'IAs erram. Use como segunda opinião: a última palavra sobre a mensagem é sua (e do Espírito Santo).' }));
+  }
+};
+
+/* ===== Conversa com a revisão: o pastor responde, a IA reavalia (sem bajular) ===== */
+const ReviewChat = {
+  system(kind) {
+    const K = REVIEW_KINDS.find(k => k[0] === kind) || REVIEW_KINDS[0];
+    return `Você é o mesmo revisor homilético que avaliou o texto abaixo (gênero: ${K[1]}). O pastor está respondendo às suas observações.
+Contexto da igreja: ${AI.cfg().church}
+Como responder:
+- Reavalie com honestidade. Se o argumento dele for bom (ex.: o gênero não pede aquilo, há uma razão pastoral, o contexto da igreja explica), RECONHEÇA claramente e diga o que muda na sua avaliação (qual nota/observação você ajustaria e para quanto).
+- Se o argumento não resolver o problema, MANTENHA sua posição com respeito e explique por quê, de forma concreta. Não ceda só para agradar; ele pediu sinceridade.
+- Se for uma questão de tradição teológica legítima, diga isso em vez de tratar como erro.
+- Seja direto e breve (até 180 palavras), em português do Brasil, texto corrido sem JSON e sem títulos.`;
+  },
+  build(rev, s, ok) {
+    rev.chat ||= [];
+    const name = p => p === 'claude' ? 'Claude' : 'Gemini';
+    let prov = ok.includes(rev.lastChat) ? rev.lastChat : ok[0]; let quote = null;
+    const log = el('div', { class: 'rvc-log' });
+    const ta = el('textarea', { class: 'inp', rows: 3, placeholder: 'Ex.: “Isto é uma devocional curta, por isso não tem apelo nem três pontos.”' });
+    const quoteBox = el('div', { class: 'rvc-quote', hidden: true });
+    const provBox = el('div', { class: 'sl-chips' });
+    const paintProv = () => { provBox.innerHTML = ''; if (ok.length < 2) return; provBox.append(el('span', { class: 'muted small', text: 'Responder para: ' }), ...ok.map(p => el('button', { class: 'chip' + (p === prov ? ' on' : ''), text: name(p), onclick: () => { prov = p; paintProv(); } }))); };
+    const paintLog = () => {
+      log.innerHTML = '';
+      for (const m of rev.chat) log.append(el('div', { class: 'rvc-msg ' + m.role },
+        el('div', { class: 'rvc-who', text: m.role === 'user' ? 'Você' + (m.to ? ' → ' + name(m.to) : '') : name(m.p) }),
+        m.quote ? el('div', { class: 'rvc-q', text: m.quote }) : null,
+        el('div', { class: 'rvc-t', text: m.text })));
+    };
+    const send = async () => {
+      const text = ta.value.trim(); if (!text) { ta.focus(); return; }
+      const msg = { role: 'user', to: prov, text, quote, at: Date.now() };
+      rev.chat.push(msg); rev.lastChat = prov; ta.value = ''; setQuote(null); paintLog();
+      const wait = el('div', { class: 'rvc-msg ai wait' }, el('div', { class: 'rvc-who', text: name(prov) }), el('div', { class: 'rvc-t', text: 'pensando…' })); log.append(wait); btn.disabled = true;
+      try {
+        const hist = rev.chat.filter(m => m.role === 'user' ? m.to === prov : m.p === prov).slice(-12)
+          .map(m => (m.role === 'user' ? 'PASTOR' : 'REVISOR') + ':' + (m.quote ? `\n[sobre: ${m.quote}]` : '') + '\n' + m.text).join('\n\n');
+        const user = `TEXTO REVISADO:\n${AI.sermonText(s)}\n\nSUA REVISÃO ANTERIOR (JSON):\n${JSON.stringify(rev.results[prov].data).slice(0, 12000)}\n\nCONVERSA:\n${hist}\n\nResponda à última mensagem do PASTOR.`;
+        const ans = await AI.ask(prov, this.system(rev.kind), user, { json: false, maxTokens: 1200 });
+        rev.chat.push({ role: 'ai', p: prov, text: (ans || '').trim() || '(sem resposta)', at: Date.now() });
+      } catch (e) { rev.chat.push({ role: 'ai', p: prov, text: '⚠ ' + e.message, at: Date.now(), err: true }); }
+      App.touch(s); btn.disabled = false; paintLog(); log.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+    const setQuote = (t) => { quote = t; quoteBox.hidden = !t; quoteBox.innerHTML = ''; if (t) quoteBox.append(el('span', { text: '↪ ' + (t.length > 220 ? t.slice(0, 220) + '…' : t) }), el('button', { class: 'btn link', text: '✕', onclick: () => setQuote(null) })); };
+    const btn = el('button', { class: 'btn primary', text: 'Enviar resposta', onclick: send });
+    ta.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); send(); } });
+    paintProv(); paintLog();
+    const box = el('div', { class: 'rvc' }, el('h4', { text: '💬 Conversar com a revisão' }),
+      el('p', { class: 'muted small', text: 'Discorda de algo? Explique seu ponto. Toque em 💬 ao lado de qualquer observação para responder a ela. A IA reavalia — e mantém a posição quando achar que deve.' }),
+      log, provBox, quoteBox, ta, el('div', { class: 'row-btns' }, btn, el('span', { class: 'muted small', text: 'Ctrl+Enter envia' })));
+    return { el: box, quote: (p, t) => { if (ok.includes(p)) { prov = p; paintProv(); } setQuote(t); box.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => ta.focus(), 300); } };
   }
 };
