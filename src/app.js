@@ -149,7 +149,7 @@ const App = {
     Search.init();
     $('#page-select').onclick = () => { this.selMode = !this.selMode; this.sel = new Set(); this.renderPages(); };
     $('#toggle-nav').onclick = () => document.body.classList.toggle('nav-collapsed');
-    EditorView.init(); Marks.init(); MarkSummary.init();
+    EditorView.init(); Marks.init(); MarkSummary.init(); Spell.init();
     $('#editor').addEventListener('pointerdown', () => { if (window.innerWidth < 980) document.body.classList.add('nav-collapsed'); });
     if (window.innerWidth < 980) document.body.classList.add('nav-collapsed');
   },
@@ -478,6 +478,7 @@ const App = {
     sel.value = value && Bible.has(value) ? value : (Bible.current() || '');
   },
   bindEditable(body, b) {
+    body.spellcheck = true; body.lang = 'pt-BR';
     body.addEventListener('input', () => { b.html = body.innerHTML === '<br>' ? '' : body.innerHTML; this.touch(); });
     body.addEventListener('paste', e => {
       const html = e.clipboardData.getData('text/html');

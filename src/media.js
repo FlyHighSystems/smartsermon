@@ -471,3 +471,112 @@ const Pollinations = {
     return await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(b); });
   }
 };
+
+/* ===== Ortografia e gramática (LanguageTool, pt-BR) — F7 =====
+   Envia só o texto dos blocos (sem versículos) para api.languagetool.org e mostra as sugestões. */
+const Spell = {
+  API: 'https://api.languagetool.org/v2/check',
+  TYPES: { misspelling: ['Ortografia', '#d13438'], grammar: ['Gramática', '#0f6cbd'], typographical: ['Pontuação', '#8a6d00'], style: ['Estilo', '#107c10'], other: ['Outros', '#69707d'] },
+  /* dicionário pessoal fica na conta (sincroniza entre aparelhos) */
+  dict() { return new Set(App.meta?.dict || []); },
+  addWord(w) { const d = this.dict(); d.add(w.toLowerCase()); App.meta.dict = [...d]; App.saveMeta(); },
+  /* texto de cada bloco com o mapa para os nós de texto (para aplicar a correção no lugar certo) */
+  segments() {
+    const out = [];
+    for (const w of document.querySelectorAll('#blocks .block')) {
+      const b = App.cur?.blocks.find(x => x.id === w.dataset.id); if (!b || b.type === 'verse') continue;
+      for (const body of w.querySelectorAll('.b-body[contenteditable]')) {
+        const nodes = []; let text = ''; const tw = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+        for (let n; (n = tw.nextNode());) { nodes.push({ n, start: text.length }); text += n.data; }
+        if (text.trim()) out.push({ b, body, nodes, text });
+      }
+    }
+    return out;
+  },
+  async check(text) {
+    const r = await fetch(this.API, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ text, language: 'pt-BR', enabledOnly: 'false' }) });
+    if (r.status === 429) throw new Error('Muitas verificações seguidas. Espere um minuto e tente de novo.');
+    if (!r.ok) throw new Error('Verificador indisponível agora (erro ' + r.status + ').');
+    return (await r.json()).matches || [];
+  },
+  async run() {
+    if (!App.cur) return;
+    App.flush && App.flush();
+    const segs = this.segments(); if (!segs.length) { UI.toast('Nada para verificar nesta página.'); return; }
+    /* junta os blocos em pedidos de até ~18 mil caracteres */
+    const SEP = '\n\n'; const batches = []; let cur = { text: '', parts: [] };
+    for (const sg of segs) { if (cur.text.length + sg.text.length > 18000 && cur.parts.length) { batches.push(cur); cur = { text: '', parts: [] }; } cur.parts.push({ sg, at: cur.text.length }); cur.text += sg.text + SEP; }
+    batches.push(cur);
+    const issues = []; const dict = this.dict();
+    for (const bt of batches) {
+      const ms = await this.check(bt.text);
+      for (const m of ms) {
+        const part = bt.parts.find(p => m.offset >= p.at && m.offset + m.length <= p.at + p.sg.text.length); if (!part) continue;
+        const off = m.offset - part.at, word = part.sg.text.substr(off, m.length);
+        if (m.rule?.issueType === 'misspelling' && dict.has(word.toLowerCase())) continue;
+        issues.push({ sg: part.sg, off, len: m.length, word, msg: m.shortMessage || m.message, long: m.message, reps: (m.replacements || []).slice(0, 4).map(r => r.value), type: this.TYPES[m.rule?.issueType] ? m.rule.issueType : 'other', ctx: part.sg.text });
+      }
+    }
+    return issues;
+  },
+  range(sg, off, len) {
+    const end = off + len; let r = null; const N = sg.nodes;
+    for (let i = 0; i < N.length; i++) {
+      const { n, start } = N[i], s0 = start, s1 = start + n.data.length, last = i === N.length - 1;
+      if (!r && off >= s0 && (off < s1 || (off === s1 && last))) { r = new Range(); r.setStart(n, off - s0); }
+      if (r && end <= s1 && (end > s0 || len === 0 || end === s0 && n === r.startContainer)) { r.setEnd(n, end - s0); return r; }
+    }
+    return null;
+  },
+  paint(list) {
+    if (!window.CSS?.highlights) return;
+    for (const t of Object.keys(this.TYPES)) CSS.highlights.delete('ss-sp-' + t);
+    const by = {}; for (const it of list) { if (it.done) continue; const r = this.range(it.sg, it.off, it.len); if (r) (by[it.type] ||= []).push(r); }
+    for (const [t, rs] of Object.entries(by)) CSS.highlights.set('ss-sp-' + t, new Highlight(...rs));
+  },
+  clear() { if (window.CSS?.highlights) for (const t of Object.keys(this.TYPES)) CSS.highlights.delete('ss-sp-' + t); },
+  apply(it, rep, list) {
+    const r = this.range(it.sg, it.off, it.len);
+    if (!r || r.toString() !== it.word) { UI.toast('O texto mudou desde a verificação — rode de novo (F7).'); return false; }
+    if (r.startContainer === r.endContainer && r.startContainer.nodeType === 3) r.startContainer.replaceData(r.startOffset, r.endOffset - r.startOffset, rep); // mantém negrito/cor
+    else { const first = r.startContainer; r.deleteContents(); if (first.nodeType === 3) first.insertData(r.startOffset, rep); else r.insertNode(document.createTextNode(rep)); }
+    it.sg.body.normalize(); it.sg.body.dispatchEvent(new Event('input', { bubbles: true }));
+    /* recalcula os nós e desloca as próximas ocorrências do mesmo bloco */
+    const delta = rep.length - it.len; const nodes = []; let text = ''; const tw = document.createTreeWalker(it.sg.body, NodeFilter.SHOW_TEXT);
+    for (let n; (n = tw.nextNode());) { nodes.push({ n, start: text.length }); text += n.data; }
+    it.sg.nodes = nodes; it.sg.text = text;
+    for (const o of list) if (o !== it && o.sg === it.sg && o.off > it.off) o.off += delta;
+    it.done = true; return true;
+  },
+  async open() {
+    if (!App.cur) { UI.toast('Abra uma ministração.'); return; }
+    const body = el('div', { class: 'sp' }, el('p', { class: 'muted', text: 'Verificando ortografia e gramática…' }));
+    const m = UI.modal({ title: 'Abc ✓ Ortografia e gramática', body, wide: true, onClose: () => this.clear() });
+    let list;
+    try { list = await this.run(); } catch (e) { body.innerHTML = ''; body.append(el('p', { class: 'on-log', text: e.message.includes('fetch') ? 'Sem conexão com o verificador (LanguageTool).' : e.message })); return; }
+    const render = () => {
+      body.innerHTML = ''; this.paint(list);
+      const left = list.filter(i => !i.done);
+      body.append(el('p', { class: 'muted small', text: left.length ? `${left.length} sugestão(ões). Os versículos bíblicos não são verificados. O texto vai para o LanguageTool apenas para conferir.` : '✓ Nada a corrigir nesta página.' }));
+      for (const it of left) {
+        const [label, color] = this.TYPES[it.type];
+        const a = Math.max(0, it.off - 45), z = Math.min(it.ctx.length, it.off + it.len + 45);
+        body.append(el('div', { class: 'sp-item', style: { '--sc': color } },
+          el('div', { class: 'sp-top' }, el('span', { class: 'sp-type', text: label }), el('span', { class: 'sp-msg', text: it.msg || it.long, title: it.long })),
+          el('div', { class: 'sp-ctx', onclick: () => { const r = this.range(it.sg, it.off, it.len); r && it.sg.body.closest('.block').scrollIntoView({ behavior: 'smooth', block: 'center' }); } },
+            (a > 0 ? '…' : '') + it.ctx.slice(a, it.off), el('mark', { text: it.word }), it.ctx.slice(it.off + it.len, z) + (z < it.ctx.length ? '…' : '')),
+          el('div', { class: 'sp-acts' },
+            ...it.reps.map(r => el('button', { class: 'chip sp-rep', text: r || '(apagar)', onclick: () => { if (this.apply(it, r, list)) render(); } })),
+            el('button', { class: 'btn link', text: 'Ignorar', onclick: () => { it.done = true; render(); } }),
+            it.type === 'misspelling' ? el('button', { class: 'btn link', text: 'Adicionar ao dicionário', title: 'Nunca mais marcar esta palavra (nomes, termos bíblicos…)', onclick: () => { this.addWord(it.word); list.forEach(o => { if (o.type === 'misspelling' && o.word.toLowerCase() === it.word.toLowerCase()) o.done = true; }); render(); } }) : null)));
+      }
+    };
+    render();
+    return m;
+  },
+  init() {
+    document.addEventListener('keydown', e => { if (e.key === 'F7' && !e.ctrlKey && !e.altKey) { e.preventDefault(); this.open(); } });
+    const rb = $('#rb-spell'); if (rb) rb.onclick = () => this.open();
+  }
+};
