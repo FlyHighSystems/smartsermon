@@ -145,7 +145,7 @@ const App = {
     };
     const newEmpty = async () => { const n = await UI.ask('Novo caderno de sermões', '', 'Ex.: Conferência 2027'); if (!n) return; const nb = { id: uid(), name: n, color: SECTION_COLORS[this.meta.notebooks.length % 10] }; this.meta.notebooks.push(nb); const sec = { id: uid(), nb: nb.id, name: 'Geral', color: SECTION_COLORS[0] }; this.meta.sections.push(sec); this.meta.currentNb = nb.id; this.meta.currentSec = sec.id; this.saveMeta(); this.renderNav(); };
     $('#nb-menu').onclick = () => this.notebookMenu();
-    $('#sec-add').onclick = async () => { const n = await UI.ask('Nova seção (série, tema, evento…)', ''); if (!n) return; const sec = { id: uid(), nb: this.meta.currentNb, name: n, color: SECTION_COLORS[this.meta.sections.length % 10] }; this.meta.sections.push(sec); this.meta.currentSec = sec.id; this.saveMeta(); this.renderNav(); };
+    $('#sec-add').onclick = $('#sec-add')._orig = async () => { const n = await UI.ask('Nova seção (série, tema, evento…)', ''); if (!n) return; const sec = { id: uid(), nb: this.meta.currentNb, name: n, color: SECTION_COLORS[this.meta.sections.length % 10] }; this.meta.sections.push(sec); this.meta.currentSec = sec.id; this.saveMeta(); this.renderNav(); };
     $('#page-add').onclick = () => this.newSermon();
     $('#page-import').onclick = () => Porter.importDialog();
     Search.init();
@@ -190,7 +190,7 @@ const App = {
       const count = this.sectionSermons(s.id).length;
       const row = el('div', { class: 'sec' + (s.id === m.currentSec ? ' active' : ''), style: { '--sc': s.color }, draggable: 'true', 'data-sid': s.id,
         ondragstart: e => { if (e.target !== row) return; e.dataTransfer.setData('text/x-section', s.id); e.dataTransfer.effectAllowed = 'move'; this._dragSec = s.id; }, ondragend: () => { this._dragSec = null; } },
-        el('span', { class: 'sec-dot' }), el('span', { class: 'sec-name', text: s.name }), el('span', { class: 'sec-count', text: count }),
+        Book.secBadge(s) || el('span', { class: 'sec-dot' }), el('span', { class: 'sec-name', text: s.name }), el('span', { class: 'sec-count', text: count }),
         el('button', { class: 'icon-btn sm', title: 'Opções da seção', text: '⋯', onclick: e => { e.stopPropagation(); this.sectionMenu(s); } }));
       row.onclick = () => { m.currentSec = s.id; this.saveMeta(); this.renderNav(); const first = this.sectionSermons(s.id)[0]; if (first) this.open(first.id); };
       bindContextMenu(row, () => this.sectionMenu(s));
@@ -236,6 +236,7 @@ const App = {
         el('button', { class: 'on-item', onclick: () => { m.close(); this.moveSection(s.id, -1); } }, el('b', { text: '↑ Subir' })),
         el('button', { class: 'on-item', onclick: () => { m.close(); this.moveSection(s.id, 1); } }, el('b', { text: '↓ Descer' })),
         el('button', { class: 'on-item', onclick: () => { m.close(); this.sectionToNotebook(s); } }, el('b', { text: '⇢ Mover para outro caderno' }))),
+      Book.isNb(this.meta.notebooks.find(n => n.id === s.nb)) ? el('div', {}, el('p', { class: 'muted', text: 'Tipo da parte' }), el('div', { class: 'sl-chips' }, ...PART_KINDS.map(([id, l, ic, tip]) => el('button', { class: 'chip' + (Book.secKind(s) === id ? ' on' : ''), title: tip, text: ic + ' ' + l, onclick: () => { s.kind = id; this.saveMeta(); m.close(); this.renderNav(); this.cur && this.renderEditor(); } })))) : null,
       el('p', { class: 'muted', text: 'Cor da seção' }), colors), actions: [
       { label: 'Renomear', onClick: async () => { const n = await UI.ask('Renomear seção', s.name); if (n) { s.name = n; this.saveMeta(); this.renderNav(); } } },
       { label: 'Excluir', danger: true, onClick: async () => {

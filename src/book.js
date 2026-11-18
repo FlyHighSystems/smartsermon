@@ -7,6 +7,9 @@ const BOOK_STATUS = [['ideia', 'Ideia', '#8a8886'], ['rascunho', 'Rascunho', '#c
 /* tipos de página do livro: [id, rótulo, onde fica no livro] — 'plan' não entra no manuscrito */
 const BOOK_KINDS = [['capitulo', 'Capítulo', 'body'], ['roteiro', 'Roteiro', 'plan'], ['prefacio', 'Prefácio', 'front'], ['apresentacao', 'Apresentação', 'front'], ['nota', 'Nota do autor', 'front'],
   ['introducao', 'Introdução', 'body'], ['conclusao', 'Conclusão', 'back'], ['posfacio', 'Posfácio', 'back'], ['apendice', 'Apêndice', 'back']];
+/* tipos de parte (seções do livro) */
+const PART_KINDS = [['parte', 'Parte', '📚', 'Agrupa capítulos e ganha página própria (“Parte I — …”)'], ['front', 'Abertura', '✒️', 'Prefácio, apresentação, introdução: antes dos capítulos, sem número'],
+  ['back', 'Encerramento', '📎', 'Conclusão, posfácio, apêndices: depois dos capítulos, sem número'], ['plan', 'Planejamento', '🧭', 'Roteiros, pesquisa, rascunhos soltos: não vai para o manuscrito']];
 const ROMAN = n => { const v = [[10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']]; let o = ''; for (const [k, r] of v) while (n >= k) { o += r; n -= k; } return o; };
 const fmtN = n => (n || 0).toLocaleString('pt-BR');
 
@@ -17,12 +20,34 @@ const Book = {
   cur() { const nb = App.meta.notebooks.find(n => n.id === App.meta.currentNb); return this.isNb(nb) ? nb : null; },
   info(nb) { nb.book ||= {}; const b = nb.book; b.subtitle ??= ''; b.author ??= ''; b.goal ??= 50000; b.dedication ??= ''; b.epigraph ??= ''; b.epigraphRef ??= ''; b.copyright ??= ''; b.about ??= ''; b.thanks ??= ''; b.refs ||= []; return b; },
   parts(nb) { return App.meta.sections.filter(x => x.nb === nb.id); },
+  secKind(sec) { return sec?.kind || 'parte'; },
+  realParts(nb) { return this.parts(nb).filter(p => this.secKind(p) === 'parte'); },
+  partMenu(anchor) {
+    $('.mk-menu')?.remove(); const nb = this.cur(); if (!nb) return;
+    const box = el('div', { class: 'mk-menu bk-kinds' }, el('div', { class: 'muted small', style: { padding: '4px 10px' }, text: 'Nova parte do livro:' }),
+      ...PART_KINDS.map(([id, label, ic, tip]) => el('button', { class: 'mk-item', title: tip, onclick: async () => {
+        box.remove(); const n = await UI.ask('Nova ' + label.toLowerCase(), id === 'parte' ? '' : label, id === 'parte' ? 'Ex.: A semente' : ''); if (!n) return;
+        const sec = { id: uid(), nb: nb.id, name: n, color: '#8e562e', kind: id };
+        /* abertura entra antes das outras partes; o resto, no fim */
+        if (id === 'front') { const i = App.meta.sections.findIndex(x => x.nb === nb.id); App.meta.sections.splice(i < 0 ? App.meta.sections.length : i, 0, sec); } else App.meta.sections.push(sec);
+        App.meta.currentSec = sec.id; App.saveMeta(); App.renderNav(); } },
+        el('span', { class: 'bk-ki', text: ic }), el('span', { class: 'mk-l' }, el('b', { text: label }), el('div', { class: 'muted small', text: tip })))));
+    document.body.append(box); const r = anchor.getBoundingClientRect();
+    box.style.left = Math.max(8, Math.min(innerWidth - box.offsetWidth - 8, r.left)) + 'px'; box.style.top = Math.min(innerHeight - box.offsetHeight - 8, r.bottom + 4) + 'px';
+    setTimeout(() => { const off = e => { if (!box.contains(e.target)) { box.remove(); document.removeEventListener('pointerdown', off, true); } }; document.addEventListener('pointerdown', off, true); }, 0);
+  },
+  secBadge(sec) {
+    if (!this.isNb(App.meta.notebooks.find(n => n.id === sec.nb))) return null;
+    const k = this.secKind(sec); if (k === 'parte') { const i = this.realParts(App.meta.notebooks.find(n => n.id === sec.nb)).indexOf(sec); return el('span', { class: 'sec-kind', title: 'Parte numerada', text: ROMAN(i + 1) }); }
+    const K = PART_KINDS.find(x => x[0] === k); return el('span', { class: 'sec-kind', title: K[3], text: K[2] });
+  },
   /* todos os capítulos em ordem, com número (só os de primeiro nível) */
   chapters(nb) {
     const out = []; let n = 0;
     for (const part of this.parts(nb)) { let parent = null; for (const s of App.sectionSermons(part.id)) {
-      const top = !(s.level > 0); if (top) parent = s; const kind = this.kind(s), plan = kind === 'roteiro' || (!top && parent && this.kind(parent) === 'roteiro');
-      out.push({ part, s, top, kind, plan, num: top && kind === 'capitulo' ? ++n : null }); } }
+      const top = !(s.level > 0); if (top) parent = s; const kind = this.kind(s), pk = this.secKind(part);
+      const plan = pk === 'plan' || kind === 'roteiro' || (!top && parent && this.kind(parent) === 'roteiro');
+      out.push({ part, s, top, kind, plan, num: top && kind === 'capitulo' && pk === 'parte' && !plan ? ++n : null }); } }
     return out;
   },
   numOf(s) { const nb = this.nbOf(s.sec); return nb ? this.chapters(nb).find(c => c.s.id === s.id)?.num : null; },
@@ -63,15 +88,16 @@ const Book = {
     for (const b of scope) { if (b.type !== 'text') continue; const d = document.createElement('div'); d.innerHTML = (b.html || '').replace(/<br\s*\/?>|<\/div>|<\/p>/gi, '\n');
       const lis = d.querySelectorAll('li'); (lis.length ? [...lis].map(li => li.textContent) : d.textContent.split('\n')).forEach(t => { t = t.replace(/^\s*(\d+[.)]|[-•*])\s*/, '').trim(); if (t) items.push(t); }); }
     const exist = new Set(this.chapters(nb).map(c => (c.s.title || '').trim().toLowerCase()));
-    let made = 0; this.ensureOrder(s.sec); const list = App.sectionSermons(s.sec);
+    const target = this.secKind(App.meta.sections.find(x => x.id === s.sec)) === 'plan' ? (this.realParts(nb)[0] || App.meta.sections.find(x => x.id === s.sec)) : App.meta.sections.find(x => x.id === s.sec);
+    let made = 0; this.ensureOrder(target.id); const list = App.sectionSermons(target.id);
     for (const t of items) {
       const [title, ...rest] = t.split(/\s+[—–-]\s+|:\s+/); const name = (title || '').trim(); if (!name || exist.has(name.toLowerCase()) || /^título do capítulo$/i.test(name)) continue;
-      const c = { ...blankSermon(s.sec), ...this.blankChapter(), title: name, order: list.length + made };
+      const c = { ...blankSermon(target.id), ...this.blankChapter(), title: name, order: list.length + made };
       c.book = { kind: 'capitulo', status: 'ideia', goal: 0, synopsis: rest.join(' — ').trim() };
       App.sermons.set(c.id, c); App.touch(c); exist.add(name.toLowerCase()); made++;
     }
     App.flush(); App.renderNav();
-    UI.toast(made ? `${made} capítulo(s) criado(s) a partir do roteiro, com o resumo de cada um.` : 'Nenhum capítulo novo: escreva a lista em “Capítulos” como “Título — do que trata”.');
+    UI.toast(made ? `${made} capítulo(s) criado(s) em “${target.name}”, com o resumo de cada um.` : 'Nenhum capítulo novo: escreva a lista em “Capítulos” como “Título — do que trata”.');
   },
   meta(s) { s.book ||= {}; s.book.status ||= 'rascunho'; s.book.goal ??= 0; s.book.synopsis ??= ''; return s.book; },
   status(s) { return BOOK_STATUS.find(x => x[0] === this.meta(s).status) || BOOK_STATUS[1]; },
@@ -84,7 +110,7 @@ const Book = {
   navLabels() {
     const b = !!this.cur();
     const pa = $('#page-add'); if (pa) { pa.textContent = b ? '＋ Nova ▾' : '＋ Página'; pa.title = b ? 'Novo capítulo, roteiro, prefácio…' : 'Nova ministração'; pa.onclick = b ? e => this.addMenu(e.currentTarget) : () => App.newSermon(); }
-    const sa = $('#sec-add'); if (sa) sa.textContent = b ? '＋ Adicionar parte' : '＋ Adicionar seção';
+    const sa = $('#sec-add'); if (sa) { sa.textContent = b ? '＋ Nova parte ▾' : '＋ Adicionar seção'; sa.className = b ? 'btn sm primary sec-add-bk' : 'btn link'; sa.onclick = b ? e => this.partMenu(e.currentTarget) : sa._orig || sa.onclick; }
     let bb = $('#book-open');
     if (b && !bb) { bb = el('button', { class: 'btn sm', id: 'book-open', title: 'Visão geral, quadro, dados, referências e exportação do livro', text: '📖 Livro', onclick: () => this.open() }); $('.page-tools')?.prepend(bb); }
     if (bb) bb.hidden = !b;
@@ -97,8 +123,9 @@ const Book = {
   create(name) {
     const nb = { id: uid(), name, kind: 'book', color: '#8e562e', book: {} }; this.info(nb);
     App.meta.notebooks.push(nb);
-    const sec = { id: uid(), nb: nb.id, name: 'Capítulos', color: '#8e562e' }; App.meta.sections.push(sec);
-    App.meta.currentNb = nb.id; App.meta.currentSec = sec.id; App.saveMeta(); App.renderNav();
+    const plan = { id: uid(), nb: nb.id, name: 'Planejamento', color: '#8e562e', kind: 'plan' }, sec = { id: uid(), nb: nb.id, name: 'Capítulos', color: '#8e562e', kind: 'parte' };
+    App.meta.sections.push(plan, sec);
+    App.meta.currentNb = nb.id; App.meta.currentSec = plan.id; App.saveMeta(); App.renderNav();
     this.newPage('roteiro');
   },
 
@@ -527,9 +554,9 @@ const BookExport = {
     }
     if (o.toc) body += P(run('Sumário'), 'TituloSemNumero') + `<w:p><w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r><w:r><w:instrText xml:space="preserve"> TOC \\o "1-2" \\h \\z \\u </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>Clique com o botão direito aqui e escolha “Atualizar campo” para montar o sumário.</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`;
     if (o.front && F.thanks) body += P(run('Agradecimentos'), 'TituloSemNumero', '<w:pageBreakBefore/>') + F.thanks.split(/\n+/).map(l => P(run(l))).join('');
-    const list = this.list(nb, o); const multi = Book.parts(nb).length > 1; let lastPart = null, pn = 0;
+    const list = this.list(nb, o); const multi = Book.realParts(nb).length > 1; let lastPart = null, pn = 0;
     for (const c of list) {
-      if (multi && c.part !== lastPart) { lastPart = c.part; body += P(run(`Parte ${ROMAN(++pn)}`, { caps: 1 }), 'ParteN', '<w:pageBreakBefore/>') + P(run(c.part.name), 'Parte', '<w:outlineLvl w:val="0"/>'); }
+      if (multi && c.part !== lastPart && Book.secKind(c.part) === 'parte') { lastPart = c.part; body += P(run(`Parte ${ROMAN(Book.realParts(nb).indexOf(c.part) + 1)}`, { caps: 1 }), 'ParteN', '<w:pageBreakBefore/>') + P(run(c.part.name), 'Parte', '<w:outlineLvl w:val="0"/>'); }
       const lvl = multi ? 1 : 0;
       if (c.top) { const lab = o.capLabel && c.num; if (lab) body += P(run(`Capítulo ${c.num}`), 'CapituloN', '<w:pageBreakBefore/>'); body += P(run(c.s.title || 'Sem título'), 'Capitulo', `${lab ? '' : '<w:pageBreakBefore/>'}<w:outlineLvl w:val="${lvl}"/>`); }
       else body += P(run(c.s.title || ''), 'Intertitulo');
@@ -635,9 +662,9 @@ sup a{text-decoration:none}.notas{margin-top:2.5em;border-top:1px solid #999;pad
       if (F.epi) add('epigrafe.xhtml', 'Epígrafe', `<section class="epi" epub:type="epigraph">${esc(F.epi).replace(/\n/g, '<br/>')}${F.epiRef ? `<p class="ref">${esc(F.epiRef)}</p>` : ''}</section>`, false);
       if (F.thanks) add('agradecimentos.xhtml', 'Agradecimentos', `<h1>Agradecimentos</h1>${F.thanks.split(/\n+/).map(l => `<p>${esc(l)}</p>`).join('')}`);
     }
-    const list = this.list(nb, o); const multi = Book.parts(nb).length > 1; let lastPart = null, pn = 0, k = 0;
+    const list = this.list(nb, o); const multi = Book.realParts(nb).length > 1; let lastPart = null, pn = 0, k = 0;
     for (const c of list) {
-      if (multi && c.part !== lastPart) { lastPart = c.part; pn++; add(`parte${pn}.xhtml`, `Parte ${ROMAN(pn)} — ${c.part.name}`, `<section epub:type="part"><p class="capn">Parte ${ROMAN(pn)}</p><h2 class="parte">${esc(c.part.name)}</h2></section>`); }
+      if (multi && c.part !== lastPart && Book.secKind(c.part) === 'parte') { lastPart = c.part; pn = Book.realParts(nb).indexOf(c.part) + 1; add(`parte${pn}.xhtml`, `Parte ${ROMAN(pn)} — ${c.part.name}`, `<section epub:type="part"><p class="capn">Parte ${ROMAN(pn)}</p><h2 class="parte">${esc(c.part.name)}</h2></section>`); }
       const notes = []; const box = this.chapterHTML(c, notes); await fixImgs(box); const nh = this.notesHTML(c, notes);
       const head = c.top ? `${o.capLabel && c.num ? `<p class="capn">Capítulo ${c.num}</p>` : ''}<h1>${esc(c.s.title || 'Sem título')}</h1>` : `<h1>${esc(c.s.title || '')}</h1>`;
       add(`cap${++k}.xhtml`, c.num ? `${c.num}. ${c.s.title}` : c.s.title, `<section epub:type="chapter">${head}${xml(box)}${nh ? ser.serializeToString(nh).replace(/ xmlns="http:\/\/www\.w3\.org\/1999\/xhtml"/g, '') : ''}</section>`, c.top);
@@ -667,9 +694,9 @@ sup a{text-decoration:none}.notas{margin-top:2.5em;border-top:1px solid #999;pad
     const list = this.list(nb, o);
     if (o.toc) P.append(pb(el('div', { class: 'toc' }, el('h1', { text: 'Sumário' }), ...list.filter(c => c.top).map(c => el('p', { class: 'toc-i', text: c.num ? `${c.num}. ${c.s.title || ''}` : c.s.title || '' })))));
     if (o.front && F.thanks) P.append(pb(el('h1', { text: 'Agradecimentos' }), ...F.thanks.split(/\n+/).map(l => el('p', { text: l }))));
-    const multi = Book.parts(nb).length > 1; let lastPart = null, pn = 0;
+    const multi = Book.realParts(nb).length > 1; let lastPart = null, pn = 0;
     for (const c of list) {
-      if (multi && c.part !== lastPart) { lastPart = c.part; P.append(pb(el('p', { class: 'capn', text: 'Parte ' + ROMAN(++pn) }), el('h2', { class: 'parte', text: c.part.name }))); }
+      if (multi && c.part !== lastPart && Book.secKind(c.part) === 'parte') { lastPart = c.part; P.append(pb(el('p', { class: 'capn', text: 'Parte ' + ROMAN(Book.realParts(nb).indexOf(c.part) + 1) }), el('h2', { class: 'parte', text: c.part.name }))); }
       const notes = []; const box = this.chapterHTML(c, notes);
       const sec = c.top ? pb(o.capLabel && c.num ? el('p', { class: 'capn', text: 'Capítulo ' + c.num }) : '', el('h1', { text: c.s.title || '' })) : el('div', {}, el('h3', { text: c.s.title || '' }));
       sec.append(...box.childNodes); const nh = this.notesHTML(c, notes); if (nh) sec.append(nh); P.append(sec);
