@@ -3,9 +3,25 @@
 const AI = {
   cfg() {
     let c = {}; try { c = JSON.parse(localStorage.getItem('ss-ai') || '{}'); } catch (e) { }
-    return { anthropicKey: c.anthropicKey || '', geminiKey: c.geminiKey || '', claudeModel: c.claudeModel || 'claude-sonnet-5-5', geminiModel: c.geminiModel || 'gemini-flash-latest', church: c.church ?? 'Igreja evangélica; cultos de domingo e células; público misto (membros e visitantes).' };
+    return { anthropicKey: c.anthropicKey || '', geminiKey: c.geminiKey || '', claudeModel: c.claudeModel || 'claude-sonnet-5-5', geminiModel: c.geminiModel || 'gemini-flash-latest', church: c.church ?? 'Igreja evangélica; cultos de domingo e células; público misto (membros e visitantes).', syncKeys: c.syncKeys !== false, at: c.at || 0 };
   },
-  save(c) { try { localStorage.setItem('ss-ai', JSON.stringify(c)); } catch (e) { } },
+  /* fromCloud: veio de outro aparelho (mantém o horário original e não reenvia) */
+  save(c, { fromCloud = false } = {}) {
+    c = { ...c, at: fromCloud ? (c.at || 0) : Date.now() };
+    try { localStorage.setItem('ss-ai', JSON.stringify(c)); } catch (e) { }
+    if (!fromCloud && typeof App !== 'undefined' && App.meta) App.saveMeta();
+  },
+  /* O que vai para a conta: com as chaves (padrão) ou só modelos e contexto */
+  cloudPayload() {
+    const c = this.cfg(); if (!c.at) return null;
+    return c.syncKeys ? c : { ...c, anthropicKey: '', geminiKey: '' };
+  },
+  fromCloud(r) {
+    if (!r || !r.at || r.at <= this.cfg().at) return false;
+    const loc = this.cfg();
+    this.save(r.syncKeys === false ? { ...r, anthropicKey: loc.anthropicKey, geminiKey: loc.geminiKey } : r, { fromCloud: true });
+    return true;
+  },
   has(p) { const c = this.cfg(); return p === 'claude' ? !!c.anthropicKey : p === 'gemini' ? !!c.geminiKey : !!(c.anthropicKey || c.geminiKey); },
   async claude(system, user, { maxTokens = 6000 } = {}) {
     const c = this.cfg();
@@ -84,16 +100,19 @@ const AI = {
     ak.style.flex = gk.style.flex = '1';
     const cm = el('input', { class: 'inp', value: c.claudeModel }), gm = el('input', { class: 'inp', value: c.geminiModel });
     const ch = el('textarea', { class: 'inp', rows: 2 }); ch.value = c.church;
+    const sk = el('input', { type: 'checkbox', checked: c.syncKeys });
     const out = el('p', { class: 'small' });
-    const val = () => ({ anthropicKey: ak.value.trim(), geminiKey: gk.value.trim(), claudeModel: cm.value.trim() || 'claude-sonnet-5-5', geminiModel: gm.value.trim() || 'gemini-flash-latest', church: ch.value.trim() });
+    const val = () => ({ anthropicKey: ak.value.trim(), geminiKey: gk.value.trim(), claudeModel: cm.value.trim() || 'claude-sonnet-5-5', geminiModel: gm.value.trim() || 'gemini-flash-latest', church: ch.value.trim(), syncKeys: sk.checked });
     const body = el('div', { class: 'ai-set' },
-      el('p', { class: 'muted', html: 'As chaves ficam <b>só neste aparelho</b> e vão direto para a Anthropic e o Google. Cada análise custa centavos (cobrança na sua conta de cada serviço). Você pode usar só uma das duas.' }),
+      el('p', { class: 'muted', html: 'As chamadas vão direto daqui para a Anthropic e o Google. Cada análise custa centavos (cobrança na sua conta de cada serviço). Você pode usar só uma das duas.' }),
       el('label', { class: 'lbl', text: 'Chave da API do Claude (console.anthropic.com › API Keys)' }), keyRow(ak),
       el('label', { class: 'lbl', text: 'Chave da API do Gemini (aistudio.google.com › Get API key)' }), keyRow(gk),
       el('details', {}, el('summary', { text: 'Modelos e contexto' }),
         el('label', { class: 'lbl', text: 'Modelo do Claude' }), cm,
         el('label', { class: 'lbl', text: 'Modelo do Gemini' }), gm,
         el('label', { class: 'lbl', text: 'Contexto da sua igreja (ajuda a IA a calibrar a revisão)' }), ch),
+      el('label', { class: 'lbl', style: { display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 'normal' } }, sk,
+        el('span', { html: 'Guardar as chaves na minha conta e usar em <b>todos os meus aparelhos</b> (precisa estar logado na nuvem). Desmarcado: ficam só neste aparelho.' })),
       out);
     UI.modal({ title: 'Inteligência artificial', body, wide: true, actions: [
       { label: 'Testar', onClick: async () => {
