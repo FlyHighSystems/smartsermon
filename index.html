@@ -3823,11 +3823,47 @@ const AI = {
   ask(provider, system, user, opts) { return provider === 'gemini' ? this.gemini(system, user, opts) : this.claude(system, user, opts); },
   parseJSON(t) {
     if (!t) throw new Error('Resposta vazia');
-    const s = t.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+    let s = t.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
     try { return JSON.parse(s); } catch (e) { }
-    const a = s.indexOf('{'), b = s.lastIndexOf('}');
-    if (a >= 0 && b > a) return JSON.parse(s.slice(a, b + 1));
-    throw new Error('A IA não devolveu JSON válido');
+    const a = s.indexOf('{'); if (a > 0) s = s.slice(a);
+    try { return JSON.parse(s.slice(0, s.lastIndexOf('}') + 1)); } catch (e) { }
+    try { return JSON.parse(this.repairJSON(s)); } catch (e) { }
+    throw new Error('A IA devolveu uma resposta mal formatada');
+  },
+  /* Conserta os erros comuns de JSON das IAs: aspas sem escape dentro de textos
+     (ex.: o texto diz "quando plantada"), quebras de linha cruas, vírgula sobrando e resposta cortada no fim. */
+  repairJSON(s) {
+    let out = '', inStr = false, esc = false; const stack = [];
+    const nextSig = i => { for (let k = i + 1; k < s.length; k++) if (!/\s/.test(s[k])) return s[k]; return ''; };
+    const sigAt = i => { for (let k = i + 1; k < s.length; k++) if (!/\s/.test(s[k])) return k; return -1; };
+    /* essa aspa fecha o texto? Num objeto, depois da vírgula tem que vir uma chave "…": */
+    const closes = i => {
+      const k = sigAt(i); if (k < 0) return true; const n = s[k];
+      if (n === '}' || n === ']' || n === ':') return true;
+      if (n !== ',') return false;
+      if (stack[stack.length - 1] !== '}') return true;
+      const j = sigAt(k); if (j < 0 || s[j] !== '"') return false;
+      for (let q = j + 1; q < s.length; q++) { if (s[q] === '\\') { q++; continue; } if (s[q] === '"') return s[sigAt(q)] === ':'; if (s[q] === '\n') return false; }
+      return false;
+    };
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (inStr) {
+        if (esc) { out += c; esc = false; continue; }
+        if (c === '\\') { out += c; esc = true; continue; }
+        if (c === '"') { if (closes(i)) { inStr = false; out += c; } else out += '\\"'; continue; }
+        if (c === '\n') { out += '\\n'; continue; } if (c === '\r') continue; if (c === '\t') { out += '\\t'; continue; }
+        out += c; continue;
+      }
+      if (c === '"') { inStr = true; out += c; continue; }
+      if (c === '{' || c === '[') stack.push(c === '{' ? '}' : ']');
+      else if (c === '}' || c === ']') stack.pop();
+      out += c;
+    }
+    if (inStr) out += '"';
+    out = out.replace(/,\s*$/, '');
+    while (stack.length) out += stack.pop();
+    return out.replace(/,(\s*[}\]])/g, '$1');
   },
   /* Ministração em texto simples, com rótulos dos blocos */
   sermonText(s) {
@@ -3950,7 +3986,11 @@ Notas de 0 a 10.`;
     const user = `Revise este sermão:\n\n${text}`;
     const tasks = providers.map(async p => {
       onStep && onStep(p, 'run');
-      try { const r = AI.parseJSON(await AI.ask(p, this.system(), user)); onStep && onStep(p, 'ok'); return [p, { ok: true, data: r }]; }
+      try {
+        let r; try { r = AI.parseJSON(await AI.ask(p, this.system(), user)); }
+        catch (e) { if (!/mal formatada|vazia/.test(e.message)) throw e; onStep && onStep(p, 'retry'); r = AI.parseJSON(await AI.ask(p, this.system(), user + '\n\nATENÇÃO: responda com JSON estritamente válido. Dentro dos textos, use aspas simples (\') em vez de aspas duplas.')); }
+        onStep && onStep(p, 'ok'); return [p, { ok: true, data: r }];
+      }
       catch (e) { onStep && onStep(p, 'err'); return [p, { ok: false, error: e.message }]; }
     });
     const refs = await checkReferences(s);
@@ -3982,7 +4022,7 @@ Notas de 0 a 10.`;
             const line = (p, t) => { let e = st.querySelector(`[data-p="${p}"]`); if (!e) { e = el('div', { 'data-p': p }); st.append(e); } e.textContent = t; };
             body.append(el('p', { text: 'Analisando… (costuma levar de 20 a 60 segundos)' }), st);
             prov.forEach(p => line(p, `${p === 'claude' ? 'Claude' : 'Gemini'}: aguardando…`)); line('refs', 'Referências: conferindo…');
-            const rev = await this.run(s, prov, (p, k) => line(p, `${p === 'claude' ? 'Claude' : 'Gemini'}: ${k === 'run' ? 'analisando…' : k === 'ok' ? 'pronto ✓' : 'erro ✗'}`));
+            const rev = await this.run(s, prov, (p, k) => line(p, `${p === 'claude' ? 'Claude' : 'Gemini'}: ${k === 'run' ? 'analisando…' : k === 'ok' ? 'pronto ✓' : k === 'retry' ? 'resposta veio mal formatada, pedindo de novo…' : 'erro ✗'}`));
             this.render(body, rev, s, start);
           } }),
           s.reviews?.length ? el('button', { class: 'btn', text: `Ver última revisão (${new Date(s.reviews[0].at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })})`, onclick: () => this.render(body, s.reviews[0], s, start) }) : null));
