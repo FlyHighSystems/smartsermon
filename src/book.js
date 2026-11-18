@@ -795,7 +795,7 @@ const NbPanel = {
     this.render(); const r = this.btn.getBoundingClientRect();
     this.col.classList.add('fly'); this.col.style.top = (r.bottom + 4) + 'px'; this.col.style.left = Math.max(6, r.left) + 'px';
   },
-  close() { this.col?.classList.remove('fly'); },
+  close() { if (!this.col) return; this.col.classList.remove('fly'); this.col.style.top = this.col.style.left = ''; },
   render() {
     if (!this.col) return;
     const m = App.meta, cur = m.notebooks.find(n => n.id === m.currentNb);

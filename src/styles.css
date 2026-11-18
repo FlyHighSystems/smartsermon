@@ -575,3 +575,4 @@ body.nb-pinned .nb-car{display:none}
 .nbc-row .icon-btn{opacity:0}.nbc-row:hover .icon-btn,.nbc-row.on .icon-btn{opacity:1}
 .nbc-row.d-before{box-shadow:inset 0 2px 0 var(--accent)}.nbc-row.d-after{box-shadow:inset 0 -2px 0 var(--accent)}
 @media (max-width:980px){body.nb-pinned #nb-col:not(.fly){display:none}body.nb-pinned .nb-car{display:inline}}
+#nb-col:not(.fly){top:auto!important;left:auto!important}
