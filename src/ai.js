@@ -18,17 +18,37 @@ const AI = {
     if (!r.ok) throw new Error('Claude: ' + (j.error?.message || ('erro ' + r.status)));
     return (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
   },
-  async gemini(system, user, { json = true } = {}) {
+  /* Modelos reserva quando o escolhido está sobrecarregado (503), sem cota (429) ou não existe (404) */
+  GEMINI_FALLBACK: ['gemini-flash-latest', 'gemini-flash-lite-latest'],
+  wait: ms => new Promise(r => setTimeout(r, ms)),
+  async gemini(system, user, { json = true, onRetry } = {}) {
     const c = this.cfg();
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(c.geminiModel)}:generateContent`, {
-      method: 'POST',
-      headers: { 'x-goog-api-key': c.geminiKey, 'content-type': 'application/json' },
-      body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }], ...(json ? { generationConfig: { responseMimeType: 'application/json' } } : {}) })
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error('Gemini: ' + (j.error?.message || ('erro ' + r.status)));
-    const parts = j.candidates?.[0]?.content?.parts || [];
-    return parts.filter(p => !p.thought && p.text).map(p => p.text).join('');
+    const models = [...new Set([c.geminiModel, ...this.GEMINI_FALLBACK])];
+    const body = JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: user }] }], ...(json ? { generationConfig: { responseMimeType: 'application/json' } } : {}) });
+    let lastErr = '';
+    for (const model of models) {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        let r, j = {};
+        try {
+          r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method: 'POST', headers: { 'x-goog-api-key': c.geminiKey, 'content-type': 'application/json' }, body });
+          j = await r.json().catch(() => ({}));
+        } catch (e) { lastErr = 'sem conexão'; break; }
+        if (r.ok) {
+          this.lastGeminiModel = model;
+          const parts = j.candidates?.[0]?.content?.parts || [];
+          return parts.filter(p => !p.thought && p.text).map(p => p.text).join('');
+        }
+        lastErr = j.error?.message || ('erro ' + r.status);
+        if (r.status === 401 || r.status === 403 || r.status === 400) throw new Error('Gemini: ' + lastErr); // chave/pedido: trocar de modelo não resolve
+        if (r.status === 404) break;                                   // modelo não existe: vai para o próximo
+        if (r.status === 503 || r.status === 500 || r.status === 429) {
+          if (attempt < 2) { onRetry && onRetry(model, attempt + 1); await this.wait(attempt ? 5000 : 2000); continue; }
+          break;                                                       // insistiu 3x: tenta o modelo reserva
+        }
+        throw new Error('Gemini: ' + lastErr);
+      }
+    }
+    throw new Error('Gemini (todos os modelos ocupados ou indisponíveis — tente em alguns minutos): ' + lastErr);
   },
   ask(provider, system, user, opts) { return provider === 'gemini' ? this.gemini(system, user, opts) : this.claude(system, user, opts); },
   parseJSON(t) {
@@ -56,15 +76,20 @@ const AI = {
   settings(after) {
     const c = this.cfg();
     const ak = el('input', { class: 'inp', type: 'password', placeholder: 'sk-ant-…', value: c.anthropicKey, autocomplete: 'off' });
-    const gk = el('input', { class: 'inp', type: 'password', placeholder: 'AIza…', value: c.geminiKey, autocomplete: 'off' });
+    const gk = el('input', { class: 'inp', type: 'password', placeholder: 'AQ.… ou AIza…', value: c.geminiKey, autocomplete: 'off' });
+    /* Campo de chave com mostrar/ocultar e trocar (limpa e foca para colar a nova) */
+    const keyRow = inp => el('div', { class: 'key-row', style: { display: 'flex', gap: '6px', alignItems: 'center' } }, inp,
+      el('button', { class: 'btn sm', type: 'button', title: 'Mostrar/ocultar', text: '👁', onclick: () => { inp.type = inp.type === 'password' ? 'text' : 'password'; } }),
+      el('button', { class: 'btn sm', type: 'button', title: 'Apagar e colar uma nova', text: 'Trocar', onclick: () => { inp.value = ''; inp.type = 'text'; inp.focus(); } }));
+    ak.style.flex = gk.style.flex = '1';
     const cm = el('input', { class: 'inp', value: c.claudeModel }), gm = el('input', { class: 'inp', value: c.geminiModel });
     const ch = el('textarea', { class: 'inp', rows: 2 }); ch.value = c.church;
     const out = el('p', { class: 'small' });
     const val = () => ({ anthropicKey: ak.value.trim(), geminiKey: gk.value.trim(), claudeModel: cm.value.trim() || 'claude-sonnet-5-5', geminiModel: gm.value.trim() || 'gemini-flash-latest', church: ch.value.trim() });
     const body = el('div', { class: 'ai-set' },
       el('p', { class: 'muted', html: 'As chaves ficam <b>só neste aparelho</b> e vão direto para a Anthropic e o Google. Cada análise custa centavos (cobrança na sua conta de cada serviço). Você pode usar só uma das duas.' }),
-      el('label', { class: 'lbl', text: 'Chave da API do Claude (console.anthropic.com › API Keys)' }), ak,
-      el('label', { class: 'lbl', text: 'Chave da API do Gemini (aistudio.google.com › Get API key)' }), gk,
+      el('label', { class: 'lbl', text: 'Chave da API do Claude (console.anthropic.com › API Keys)' }), keyRow(ak),
+      el('label', { class: 'lbl', text: 'Chave da API do Gemini (aistudio.google.com › Get API key)' }), keyRow(gk),
       el('details', {}, el('summary', { text: 'Modelos e contexto' }),
         el('label', { class: 'lbl', text: 'Modelo do Claude' }), cm,
         el('label', { class: 'lbl', text: 'Modelo do Gemini' }), gm,
@@ -74,7 +99,10 @@ const AI = {
       { label: 'Testar', onClick: async () => {
         this.save(val()); out.textContent = 'Testando…'; const res = [];
         if (this.has('claude')) try { await this.claude('Responda só: ok', 'teste', { maxTokens: 10 }); res.push('Claude ✓'); } catch (e) { res.push('Claude ✗ ' + e.message); }
-        if (this.has('gemini')) try { await this.gemini('Responda só: ok', 'teste', { json: false }); res.push('Gemini ✓'); } catch (e) { res.push('Gemini ✗ ' + e.message); }
+        if (this.has('gemini')) try {
+          await this.gemini('Responda só: ok', 'teste', { json: false, onRetry: (m, n) => { out.textContent = `Gemini ocupado (${m}) — tentando de novo (${n})…`; } });
+          res.push('Gemini ✓' + (this.lastGeminiModel !== val().geminiModel ? ` (respondeu pelo reserva ${this.lastGeminiModel})` : ''));
+        } catch (e) { res.push('Gemini ✗ ' + e.message); }
         out.textContent = res.join(' · ') || 'Informe pelo menos uma chave.'; return false;
       } },
       { label: 'Salvar', primary: true, onClick: () => { this.save(val()); UI.toast('Configuração de IA salva'); after && after(); } }] });
