@@ -149,6 +149,7 @@ const App = {
     $('#page-search').oninput = () => this.renderPages();
     $('#page-select').onclick = () => { this.selMode = !this.selMode; this.sel = new Set(); this.renderPages(); };
     $('#toggle-nav').onclick = () => document.body.classList.toggle('nav-collapsed');
+    EditorView.init();
     $('#editor').addEventListener('pointerdown', () => { if (window.innerWidth < 980) document.body.classList.add('nav-collapsed'); });
     if (window.innerWidth < 980) document.body.classList.add('nav-collapsed');
   },
@@ -736,3 +737,50 @@ function imageFileToDataURL(file, maxW = 1600) {
     img.onerror = rej; img.src = url;
   });
 }
+
+/* ===== Visualização do editor: largura (normal / larga / tela toda) e zoom da letra =====
+   Fica salvo por aparelho (Surface e notebook podem ter preferências diferentes). */
+const EditorView = {
+  WIDTHS: [['normal', '▭', 'Largura normal'], ['wide', '▬', 'Largura ampla'], ['full', '⛶', 'Tela toda (esconde os painéis)']],
+  MIN: 0.8, MAX: 2.5,
+  get() { try { return { ez: 1, w: 'normal', ...JSON.parse(localStorage.getItem('ss-view') || '{}') }; } catch (e) { return { ez: 1, w: 'normal' }; } },
+  set(p) { const v = { ...this.get(), ...p }; try { localStorage.setItem('ss-view', JSON.stringify(v)); } catch (e) { } this.apply(v); },
+  apply(v = this.get()) {
+    const inner = $('#editor-inner'); if (inner) inner.style.setProperty('--ez', v.ez);
+    document.body.classList.toggle('ed-wide', v.w === 'wide'); document.body.classList.toggle('ed-full', v.w === 'full');
+    if (this.val) this.val.textContent = Math.round(v.ez * 100) + '%';
+    if (this.wb) { const w = this.WIDTHS.find(x => x[0] === v.w) || this.WIDTHS[0]; this.wb.textContent = w[1]; this.wb.title = w[2] + ' — clique para alternar'; }
+  },
+  zoom(d) { const ez = Math.round(Math.min(this.MAX, Math.max(this.MIN, this.get().ez + d)) * 100) / 100; this.set({ ez }); },
+  cycleWidth() {
+    const i = this.WIDTHS.findIndex(x => x[0] === this.get().w); const w = this.WIDTHS[(i + 1) % this.WIDTHS.length][0];
+    if (w === 'full') document.body.classList.add('nav-collapsed'); else if (this.get().w === 'full') document.body.classList.remove('nav-collapsed');
+    this.set({ w });
+  },
+  init() {
+    const ed = $('#editor'); if (!ed || this.bar) return;
+    this.val = el('button', { class: 'ez-val', title: 'Voltar para 100%', onclick: () => this.set({ ez: 1 }) });
+    this.wb = el('button', { onclick: () => this.cycleWidth() });
+    this.bar = el('div', { class: 'ed-view', role: 'toolbar', 'aria-label': 'Visualização do editor' },
+      el('button', { text: 'A−', title: 'Diminuir letra (Ctrl+Alt+−)', onclick: () => this.zoom(-0.1) }), this.val,
+      el('button', { text: 'A+', title: 'Aumentar letra (Ctrl+Alt+=)', onclick: () => this.zoom(0.1) }), this.wb);
+    ed.append(this.bar);
+    if (this.get().w === 'full') document.body.classList.add('nav-collapsed');
+    this.apply();
+    /* Ctrl+roda do mouse / pinça do touchpad: zoom só do texto do editor */
+    ed.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); this.zoom(e.deltaY < 0 ? 0.05 : -0.05); }, { passive: false });
+    document.addEventListener('keydown', e => {
+      if (!(e.ctrlKey && e.altKey) || !$('#editor')?.offsetParent) return;
+      if (e.key === '=' || e.key === '+') { e.preventDefault(); this.zoom(0.1); } else if (e.key === '-') { e.preventDefault(); this.zoom(-0.1); } else if (e.key === '0') { e.preventDefault(); this.set({ ez: 1 }); }
+    });
+    /* Pinça com dois dedos na tela (fora das áreas de desenho) */
+    let pinch = null; const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    ed.addEventListener('touchstart', e => { if (e.touches.length === 2 && !e.target.closest('canvas, .b-ink')) pinch = { d: dist(e.touches), ez: this.get().ez }; }, { passive: true });
+    ed.addEventListener('touchmove', e => {
+      if (!pinch || e.touches.length !== 2) return; e.preventDefault();
+      const ez = Math.round(Math.min(this.MAX, Math.max(this.MIN, pinch.ez * dist(e.touches) / pinch.d)) * 100) / 100;
+      const inner = $('#editor-inner'); inner && inner.style.setProperty('--ez', ez); this.val.textContent = Math.round(ez * 100) + '%'; pinch.cur = ez;
+    }, { passive: false });
+    ed.addEventListener('touchend', e => { if (pinch && e.touches.length < 2) { if (pinch.cur) this.set({ ez: pinch.cur }); pinch = null; } });
+  }
+};
