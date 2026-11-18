@@ -175,15 +175,20 @@ const App = {
     const list = $('#sec-list'); list.innerHTML = '';
     for (const s of secs) {
       const count = this.sectionSermons(s.id).length;
-      const row = el('div', { class: 'sec' + (s.id === m.currentSec ? ' active' : ''), style: { '--sc': s.color } },
+      const row = el('div', { class: 'sec' + (s.id === m.currentSec ? ' active' : ''), style: { '--sc': s.color }, draggable: 'true', 'data-sid': s.id,
+        ondragstart: e => { if (e.target !== row) return; e.dataTransfer.setData('text/x-section', s.id); e.dataTransfer.effectAllowed = 'move'; this._dragSec = s.id; }, ondragend: () => { this._dragSec = null; } },
         el('span', { class: 'sec-dot' }), el('span', { class: 'sec-name', text: s.name }), el('span', { class: 'sec-count', text: count }),
         el('button', { class: 'icon-btn sm', title: 'Opções da seção', text: '⋯', onclick: e => { e.stopPropagation(); this.sectionMenu(s); } }));
       row.onclick = () => { m.currentSec = s.id; this.saveMeta(); this.renderNav(); const first = this.sectionSermons(s.id)[0]; if (first) this.open(first.id); };
       bindContextMenu(row, () => this.sectionMenu(s));
       // soltar uma página arrastada aqui: move (segure Ctrl para copiar)
-      row.addEventListener('dragover', e => { if (e.dataTransfer.types.includes('text/x-sermon')) { e.preventDefault(); e.dataTransfer.dropEffect = e.ctrlKey ? 'copy' : 'move'; row.classList.add('drop'); } });
-      row.addEventListener('dragleave', () => row.classList.remove('drop'));
-      row.addEventListener('drop', e => { e.preventDefault(); row.classList.remove('drop'); const id = e.dataTransfer.getData('text/x-sermon'); if (!id) return; const ids = this.selMode && this.sel.has(id) ? [...this.sel] : [id]; this.moveSermons(ids, s.id, e.ctrlKey); });
+      row.addEventListener('dragover', e => {
+        if (e.dataTransfer.types.includes('text/x-section')) { if (this._dragSec === s.id) return; e.preventDefault(); const r = row.getBoundingClientRect(); const after = e.clientY > r.top + r.height / 2; row.classList.toggle('drop-after', after); row.classList.toggle('drop-before', !after); return; }
+        if (e.dataTransfer.types.includes('text/x-sermon')) { e.preventDefault(); e.dataTransfer.dropEffect = e.ctrlKey ? 'copy' : 'move'; row.classList.add('drop'); } });
+      row.addEventListener('dragleave', () => row.classList.remove('drop', 'drop-before', 'drop-after'));
+      row.addEventListener('drop', e => { e.preventDefault(); const after = row.classList.contains('drop-after'); row.classList.remove('drop', 'drop-before', 'drop-after');
+        const sid = e.dataTransfer.getData('text/x-section'); if (sid) { this.placeSection(sid, s.id, after); return; }
+        const id = e.dataTransfer.getData('text/x-sermon'); if (!id) return; const ids = this.selMode && this.sel.has(id) ? [...this.sel] : [id]; this.moveSermons(ids, s.id, e.ctrlKey); });
       list.append(row);
     }
     const cs = m.sections.find(s => s.id === m.currentSec);
@@ -191,9 +196,33 @@ const App = {
     document.documentElement.style.setProperty('--sec-color', cs?.color || '#7719aa');
     this.renderPages();
   },
+  /* ===== Ordem das seções ===== */
+  moveSection(id, dir) {
+    const A = this.meta.sections, i = A.findIndex(x => x.id === id); if (i < 0) return;
+    const nb = A[i].nb; let j = i + dir; while (j >= 0 && j < A.length && A[j].nb !== nb) j += dir;
+    if (j < 0 || j >= A.length) return;
+    [A[i], A[j]] = [A[j], A[i]]; this.saveMeta(); this.renderNav();
+  },
+  placeSection(dragId, targetId, after) {
+    const A = this.meta.sections; const i = A.findIndex(x => x.id === dragId); if (i < 0 || dragId === targetId) return;
+    const [sec] = A.splice(i, 1); const t = A.find(x => x.id === targetId); sec.nb = t.nb;
+    let k = A.indexOf(t) + (after ? 1 : 0); A.splice(k, 0, sec); this.saveMeta(); this.renderNav();
+  },
+  async sectionToNotebook(s) {
+    const others = this.meta.notebooks.filter(n => n.id !== s.nb);
+    if (!others.length) { UI.toast('Crie outro caderno primeiro'); return; }
+    const m = UI.modal({ title: `Mover “${s.name}” para o caderno…`, body: el('div', { class: 'sp-list' }, others.map(n => el('button', { class: 'sp-sec', onclick: () => {
+      const A = this.meta.sections; A.splice(A.indexOf(s), 1); s.nb = n.id; A.push(s); this.meta.currentNb = n.id; this.meta.currentSec = s.id; this.saveMeta(); this.renderNav(); m.close(); UI.toast(`Seção movida para “${n.name}”`);
+    } }, el('span', { text: n.name })))) });
+  },
   async sectionMenu(s) {
     const colors = el('div', { class: 'swatches' }, SECTION_COLORS.map(c => el('button', { class: 'swatch' + (c === s.color ? ' on' : ''), style: { background: c }, onclick: () => { s.color = c; this.saveMeta(); this.renderNav(); m.close(); } })));
-    const m = UI.modal({ title: 'Seção: ' + s.name, body: el('div', {}, el('p', { class: 'muted', text: 'Cor da seção' }), colors), actions: [
+    const m = UI.modal({ title: 'Seção: ' + s.name, body: el('div', {},
+      el('div', { class: 'pm' },
+        el('button', { class: 'on-item', onclick: () => { m.close(); this.moveSection(s.id, -1); } }, el('b', { text: '↑ Subir' })),
+        el('button', { class: 'on-item', onclick: () => { m.close(); this.moveSection(s.id, 1); } }, el('b', { text: '↓ Descer' })),
+        el('button', { class: 'on-item', onclick: () => { m.close(); this.sectionToNotebook(s); } }, el('b', { text: '⇢ Mover para outro caderno' }))),
+      el('p', { class: 'muted', text: 'Cor da seção' }), colors), actions: [
       { label: 'Renomear', onClick: async () => { const n = await UI.ask('Renomear seção', s.name); if (n) { s.name = n; this.saveMeta(); this.renderNav(); } } },
       { label: 'Excluir', danger: true, onClick: async () => {
         const items = this.sectionSermons(s.id);

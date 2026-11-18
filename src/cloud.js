@@ -157,6 +157,7 @@ const Cloud = {
           out.push(l && m.metaUpdated > remote.updated_at ? l : x); byId.delete(x.id);
         }
         for (const l of byId.values()) if (!del[l.id] && !(rem || []).some(x => x.id === l.id)) out.push(l);
+        if (m.metaUpdated > remote.updated_at) { const pos = new Map(loc.map((x, i) => [x.id, i])); out.sort((a, b) => (pos.get(a.id) ?? 1e9) - (pos.get(b.id) ?? 1e9)); } // ordem local mais recente
         return out;
       };
       this.remapNb = {};
