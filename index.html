@@ -591,19 +591,20 @@ body.nb-pinned .nb-car{display:none}
 .nbc-group{display:flex;align-items:center;gap:4px;cursor:default}.nbc-group span{flex:1}.nbc-ren{opacity:0;font-size:13px;width:26px;height:22px}.nbc-group:hover .nbc-ren{opacity:.8}
 
 /* Sincronização: barra fina no topo e painel da conta */
-#sync-bar{position:fixed;top:0;left:0;right:0;height:3px;z-index:2000;pointer-events:none;opacity:0;transition:opacity .3s}
-#sync-bar.on{opacity:1}#sync-bar i{display:block;height:100%;background:#fff;box-shadow:0 0 6px rgba(255,255,255,.8);transition:width .3s;width:0}
-#sync-bar i.ind,.sync-prog i.ind{width:35%!important;animation:syncind 1.2s ease-in-out infinite}
+.sync-prog i.ind{width:35%!important;animation:syncind 1.2s ease-in-out infinite}
 @keyframes syncind{0%{margin-left:-35%}100%{margin-left:100%}}
-.cloud-btn[data-state="syncing"]{animation:syncpulse 1.4s ease-in-out infinite}
-@keyframes syncpulse{50%{opacity:.65}}
 .cloud-btn[data-state="error"]{background:#c50f1f!important;color:#fff!important}
 .sync-live{margin:10px 0;padding:10px 12px;border-radius:10px;background:var(--panel2)}
 .sync-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.sync-row.ok b{color:#107c10}
 .sync-prog{height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin:10px 0 4px}.sync-prog i{display:block;height:100%;background:var(--accent);border-radius:4px;transition:width .3s}
 .spin{width:16px;height:16px;border:2.5px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0}
 @keyframes spin{to{transform:rotate(360deg)}}
-@media (prefers-reduced-motion:reduce){.spin,#sync-bar i.ind,.sync-prog i.ind,.cloud-btn[data-state="syncing"]{animation:none}}
+@media (prefers-reduced-motion:reduce){.spin,.sync-prog i.ind,.cl-ring.ind{animation:none}}
+
+.cloud-btn{display:inline-flex;align-items:center;gap:6px}
+.cl-ring{width:16px;height:16px;transform:rotate(-90deg);flex-shrink:0}
+.cl-ring circle{fill:none;stroke-width:2.6}.cl-ring .bg{stroke:currentColor;opacity:.25}.cl-ring .fg{stroke:currentColor;stroke-linecap:round;stroke-dasharray:28 100;transition:stroke-dasharray .35s ease}
+.cl-ring.ind{animation:spin .9s linear infinite}
 </style>
 </head>
 <body>
@@ -3702,20 +3703,25 @@ const Cloud = {
     const pend = this.session ? this.pendingCount() : 0;
     const L = { setup: ['☁', 'Configurar nuvem'], out: ['☁', 'Entrar'], syncing: ['⟳', this.progText() || 'Sincronizando…'], ok: ['☁✓', 'Sincronizado ' + this.hhmm(this.st.at)],
       offline: ['☁', 'Offline' + (pend ? ` · ${pend} a enviar` : '')], error: ['☁!', 'Erro — toque para ver'], pending: ['☁', pend ? `${pend} a enviar` : 'Alterações pendentes'] }[s];
-    b.textContent = L[0] + ' ' + L[1]; b.dataset.state = s;
+    b.dataset.state = s;
+    if (s === 'syncing') { b.innerHTML = ''; b.append(this.ring(), el('span', { class: 'cl-t', text: L[1] })); }
+    else b.textContent = L[0] + ' ' + L[1];
     b.title = s === 'ok' ? `Tudo sincronizado às ${this.hhmm(this.st.at)}` : (extra || L[1]);
     this.paintBar(); this.listeners.forEach(f => f());
   },
   /* progresso: barra fina no topo + texto no botão da nuvem + painel da conta */
   listeners: new Set(),
   prog: null,
-  setProg(p) { this.prog = p; const b = $('#btn-cloud'); if (b && this.status === 'syncing') b.textContent = '⟳ ' + (this.progText() || 'Sincronizando…'); this.paintBar(); this.listeners.forEach(f => f()); },
+  setProg(p) { this.prog = p; const t = $('#btn-cloud .cl-t'); if (t && this.status === 'syncing') t.textContent = this.progText() || 'Sincronizando…'; this.paintBar(); this.listeners.forEach(f => f()); },
+  /* anel de progresso ao lado do texto da nuvem */
+  ring() { const NS = 'http://www.w3.org/2000/svg'; const s = document.createElementNS(NS, 'svg'); s.setAttribute('viewBox', '0 0 20 20'); s.setAttribute('class', 'cl-ring');
+    s.innerHTML = '<circle cx="10" cy="10" r="8" class="bg"/><circle cx="10" cy="10" r="8" class="fg" pathLength="100"/>'; return s; },
   progText() { const p = this.prog; if (!p) return ''; return p.total ? `${p.label} ${Math.min(p.done, p.total)}/${p.total}` : p.label; },
   paintBar() {
-    let bar = $('#sync-bar'); if (!bar) { bar = el('div', { id: 'sync-bar' }, el('i')); document.body.append(bar); }
-    const on = this.status === 'syncing'; bar.classList.toggle('on', on);
-    const p = this.prog; const i = bar.firstChild;
-    if (on && p?.total) { i.classList.remove('ind'); i.style.width = Math.max(4, Math.round(Math.min(p.done, p.total) / p.total * 100)) + '%'; } else { i.classList.add('ind'); i.style.width = ''; }
+    const r = $('#btn-cloud .cl-ring'); if (!r || this.status !== 'syncing') return;
+    const p = this.prog, fg = r.querySelector('.fg');
+    if (p?.total) { r.classList.remove('ind'); fg.style.strokeDasharray = `${Math.max(3, Math.round(Math.min(p.done, p.total) / p.total * 100))} 100`; }
+    else { r.classList.add('ind'); fg.style.strokeDasharray = '28 100'; }
   },
   /* chamado sempre que algo muda localmente */
   schedule(ms = 4000) {

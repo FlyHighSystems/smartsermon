@@ -580,16 +580,17 @@ body.nb-pinned .nb-car{display:none}
 .nbc-group{display:flex;align-items:center;gap:4px;cursor:default}.nbc-group span{flex:1}.nbc-ren{opacity:0;font-size:13px;width:26px;height:22px}.nbc-group:hover .nbc-ren{opacity:.8}
 
 /* Sincronização: barra fina no topo e painel da conta */
-#sync-bar{position:fixed;top:0;left:0;right:0;height:3px;z-index:2000;pointer-events:none;opacity:0;transition:opacity .3s}
-#sync-bar.on{opacity:1}#sync-bar i{display:block;height:100%;background:#fff;box-shadow:0 0 6px rgba(255,255,255,.8);transition:width .3s;width:0}
-#sync-bar i.ind,.sync-prog i.ind{width:35%!important;animation:syncind 1.2s ease-in-out infinite}
+.sync-prog i.ind{width:35%!important;animation:syncind 1.2s ease-in-out infinite}
 @keyframes syncind{0%{margin-left:-35%}100%{margin-left:100%}}
-.cloud-btn[data-state="syncing"]{animation:syncpulse 1.4s ease-in-out infinite}
-@keyframes syncpulse{50%{opacity:.65}}
 .cloud-btn[data-state="error"]{background:#c50f1f!important;color:#fff!important}
 .sync-live{margin:10px 0;padding:10px 12px;border-radius:10px;background:var(--panel2)}
 .sync-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.sync-row.ok b{color:#107c10}
 .sync-prog{height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin:10px 0 4px}.sync-prog i{display:block;height:100%;background:var(--accent);border-radius:4px;transition:width .3s}
 .spin{width:16px;height:16px;border:2.5px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0}
 @keyframes spin{to{transform:rotate(360deg)}}
-@media (prefers-reduced-motion:reduce){.spin,#sync-bar i.ind,.sync-prog i.ind,.cloud-btn[data-state="syncing"]{animation:none}}
+@media (prefers-reduced-motion:reduce){.spin,.sync-prog i.ind,.cl-ring.ind{animation:none}}
+
+.cloud-btn{display:inline-flex;align-items:center;gap:6px}
+.cl-ring{width:16px;height:16px;transform:rotate(-90deg);flex-shrink:0}
+.cl-ring circle{fill:none;stroke-width:2.6}.cl-ring .bg{stroke:currentColor;opacity:.25}.cl-ring .fg{stroke:currentColor;stroke-linecap:round;stroke-dasharray:28 100;transition:stroke-dasharray .35s ease}
+.cl-ring.ind{animation:spin .9s linear infinite}

@@ -103,20 +103,25 @@ const Cloud = {
     const pend = this.session ? this.pendingCount() : 0;
     const L = { setup: ['☁', 'Configurar nuvem'], out: ['☁', 'Entrar'], syncing: ['⟳', this.progText() || 'Sincronizando…'], ok: ['☁✓', 'Sincronizado ' + this.hhmm(this.st.at)],
       offline: ['☁', 'Offline' + (pend ? ` · ${pend} a enviar` : '')], error: ['☁!', 'Erro — toque para ver'], pending: ['☁', pend ? `${pend} a enviar` : 'Alterações pendentes'] }[s];
-    b.textContent = L[0] + ' ' + L[1]; b.dataset.state = s;
+    b.dataset.state = s;
+    if (s === 'syncing') { b.innerHTML = ''; b.append(this.ring(), el('span', { class: 'cl-t', text: L[1] })); }
+    else b.textContent = L[0] + ' ' + L[1];
     b.title = s === 'ok' ? `Tudo sincronizado às ${this.hhmm(this.st.at)}` : (extra || L[1]);
     this.paintBar(); this.listeners.forEach(f => f());
   },
   /* progresso: barra fina no topo + texto no botão da nuvem + painel da conta */
   listeners: new Set(),
   prog: null,
-  setProg(p) { this.prog = p; const b = $('#btn-cloud'); if (b && this.status === 'syncing') b.textContent = '⟳ ' + (this.progText() || 'Sincronizando…'); this.paintBar(); this.listeners.forEach(f => f()); },
+  setProg(p) { this.prog = p; const t = $('#btn-cloud .cl-t'); if (t && this.status === 'syncing') t.textContent = this.progText() || 'Sincronizando…'; this.paintBar(); this.listeners.forEach(f => f()); },
+  /* anel de progresso ao lado do texto da nuvem */
+  ring() { const NS = 'http://www.w3.org/2000/svg'; const s = document.createElementNS(NS, 'svg'); s.setAttribute('viewBox', '0 0 20 20'); s.setAttribute('class', 'cl-ring');
+    s.innerHTML = '<circle cx="10" cy="10" r="8" class="bg"/><circle cx="10" cy="10" r="8" class="fg" pathLength="100"/>'; return s; },
   progText() { const p = this.prog; if (!p) return ''; return p.total ? `${p.label} ${Math.min(p.done, p.total)}/${p.total}` : p.label; },
   paintBar() {
-    let bar = $('#sync-bar'); if (!bar) { bar = el('div', { id: 'sync-bar' }, el('i')); document.body.append(bar); }
-    const on = this.status === 'syncing'; bar.classList.toggle('on', on);
-    const p = this.prog; const i = bar.firstChild;
-    if (on && p?.total) { i.classList.remove('ind'); i.style.width = Math.max(4, Math.round(Math.min(p.done, p.total) / p.total * 100)) + '%'; } else { i.classList.add('ind'); i.style.width = ''; }
+    const r = $('#btn-cloud .cl-ring'); if (!r || this.status !== 'syncing') return;
+    const p = this.prog, fg = r.querySelector('.fg');
+    if (p?.total) { r.classList.remove('ind'); fg.style.strokeDasharray = `${Math.max(3, Math.round(Math.min(p.done, p.total) / p.total * 100))} 100`; }
+    else { r.classList.add('ind'); fg.style.strokeDasharray = '28 100'; }
   },
   /* chamado sempre que algo muda localmente */
   schedule(ms = 4000) {
