@@ -105,3 +105,102 @@ language sql stable security definer set search_path = public as $$
 $$;
 revoke all on function public.get_share(text) from public;
 grant execute on function public.get_share(text) to anon, authenticated;
+
+-- ============================================================
+-- Equipe: só e-mails cadastrados aqui podem criar conta e usar o app
+-- (quem já tinha conta quando este trecho rodou pela 1ª vez vira administrador)
+-- ============================================================
+create table if not exists public.team_members (
+  email      text primary key check (email = lower(email)),
+  name       text not null default '',
+  role       text not null default 'member' check (role in ('admin', 'member')),
+  added_by   uuid default auth.uid(),
+  created_at timestamptz not null default now()
+);
+insert into public.team_members (email, name, role)
+  select lower(u.email), coalesce(u.raw_user_meta_data->>'full_name', ''), 'admin'
+  from auth.users u
+  where u.email is not null and not exists (select 1 from public.team_members)
+on conflict (email) do nothing;
+
+create or replace function public.is_member() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.team_members where email = lower(auth.jwt()->>'email'))
+$$;
+create or replace function public.is_admin() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.team_members where email = lower(auth.jwt()->>'email') and role = 'admin')
+$$;
+
+alter table public.team_members enable row level security;
+drop policy if exists "team_read" on public.team_members;
+create policy "team_read" on public.team_members for select to authenticated
+  using (public.is_admin() or email = lower(auth.jwt()->>'email'));
+drop policy if exists "team_admin_write" on public.team_members;
+create policy "team_admin_write" on public.team_members for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+
+-- Nunca deixar a equipe sem administrador
+create or replace function public.team_keep_admin() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from public.team_members where role = 'admin') then
+    raise exception 'A equipe precisa de pelo menos um administrador.';
+  end if;
+  return null;
+end $$;
+drop trigger if exists team_keep_admin on public.team_members;
+create trigger team_keep_admin after update or delete on public.team_members
+  for each statement execute function public.team_keep_admin();
+
+-- Lista para o administrador (mostra quem já fez o primeiro acesso)
+create or replace function public.team_list() returns table (email text, name text, role text, created_at timestamptz, registered boolean, last_sign_in timestamptz)
+language plpgsql stable security definer set search_path = public as $$
+begin
+  if not public.is_admin() then raise exception 'Apenas administradores.'; end if;
+  return query
+    select t.email, t.name, t.role, t.created_at, (u.id is not null), u.last_sign_in_at
+    from public.team_members t left join auth.users u on lower(u.email) = t.email
+    order by t.role, t.name, t.email;
+end $$;
+revoke all on function public.team_list() from public;
+grant execute on function public.team_list() to authenticated;
+
+-- Bloqueia a criação de conta (senha, link por e-mail ou Google) de quem não está na equipe
+create or replace function public.team_signup_guard() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.email is null or not exists (select 1 from public.team_members where email = lower(new.email)) then
+    raise exception 'SS_NOT_INVITED: e-mail não cadastrado na equipe';
+  end if;
+  return new;
+end $$;
+drop trigger if exists team_signup_guard on auth.users;
+create trigger team_signup_guard before insert on auth.users
+  for each row execute function public.team_signup_guard();
+
+-- Quem sai da equipe perde o acesso aos dados na hora (mesmo já tendo conta)
+drop policy if exists "sermons_own" on public.sermons;
+create policy "sermons_own" on public.sermons for all to authenticated
+  using (user_id = auth.uid() and public.is_member()) with check (user_id = auth.uid() and public.is_member());
+drop policy if exists "meta_own" on public.user_meta;
+create policy "meta_own" on public.user_meta for all to authenticated
+  using (user_id = auth.uid() and public.is_member()) with check (user_id = auth.uid() and public.is_member());
+drop policy if exists "shares_own" on public.shares;
+create policy "shares_own" on public.shares for all to authenticated
+  using (user_id = auth.uid() and public.is_member()) with check (user_id = auth.uid() and public.is_member());
+drop policy if exists "images_own_select" on storage.objects;
+create policy "images_own_select" on storage.objects for select to authenticated
+  using (bucket_id = 'images' and (storage.foldername(name))[1] = auth.uid()::text and public.is_member());
+drop policy if exists "images_own_insert" on storage.objects;
+create policy "images_own_insert" on storage.objects for insert to authenticated
+  with check (bucket_id = 'images' and (storage.foldername(name))[1] = auth.uid()::text and public.is_member());
+drop policy if exists "images_own_update" on storage.objects;
+create policy "images_own_update" on storage.objects for update to authenticated
+  using (bucket_id = 'images' and (storage.foldername(name))[1] = auth.uid()::text and public.is_member());
+drop policy if exists "images_own_delete" on storage.objects;
+create policy "images_own_delete" on storage.objects for delete to authenticated
+  using (bucket_id = 'images' and (storage.foldername(name))[1] = auth.uid()::text and public.is_member());
+
+-- Conferência: deve listar o seu e-mail como admin
+select email, role from public.team_members;
