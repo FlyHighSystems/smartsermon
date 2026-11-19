@@ -781,8 +781,7 @@ const NbPanel = {
   pinned() { try { return localStorage.getItem('ss-nb-pin') === '1'; } catch (e) { return false; } },
   setPinned(v) { try { localStorage.setItem('ss-nb-pin', v ? '1' : '0'); } catch (e) { } document.body.classList.toggle('nb-pinned', v); this.close(); this.render(); },
   switchTo(id) {
-    const m = App.meta; m.currentNb = id; const sec = m.sections.find(s => s.nb === id); m.currentSec = sec?.id || null;
-    App.saveMeta(); App.renderNav(); const first = sec && App.sectionSermons(sec.id)[0]; if (first) App.open(first.id);
+    App.goNotebook(id);
     if (!this.pinned()) this.close();
   },
   init() {

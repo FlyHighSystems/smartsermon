@@ -136,7 +136,7 @@ const App = {
 
   /* ---- navegação ---- */
   bindNav() {
-    $('#nb-select').onchange = e => { this.meta.currentNb = e.target.value; const sec = this.meta.sections.find(s => s.nb === e.target.value); this.meta.currentSec = sec?.id || null; this.saveMeta(); this.renderNav(); };
+    $('#nb-select').onchange = e => this.goNotebook(e.target.value);
     $('#nb-add').onclick = () => {
       const m = UI.modal({ title: 'Novo caderno', body: el('div', { class: 'type-grid' },
         el('button', { class: 'on-item', onclick: () => { m.close(); newEmpty(); } }, el('b', { text: '🎤 Caderno — ' + NbPanel.gname('ser') }), el('span', { class: 'muted small', text: 'Ministrações, devocionais, estudos, insights' })),
@@ -192,7 +192,7 @@ const App = {
         ondragstart: e => { if (e.target !== row) return; e.dataTransfer.setData('text/x-section', s.id); e.dataTransfer.effectAllowed = 'move'; this._dragSec = s.id; }, ondragend: () => { this._dragSec = null; } },
         Book.secBadge(s) || el('span', { class: 'sec-dot' }), el('span', { class: 'sec-name', text: s.name }), el('span', { class: 'sec-count', text: count }),
         el('button', { class: 'icon-btn sm', title: 'Opções da seção', text: '⋯', onclick: e => { e.stopPropagation(); this.sectionMenu(s); } }));
-      row.onclick = () => { m.currentSec = s.id; this.saveMeta(); this.renderNav(); const first = this.sectionSermons(s.id)[0]; if (first) this.open(first.id); };
+      row.onclick = () => this.goSection(s.id);
       bindContextMenu(row, () => this.sectionMenu(s));
       // soltar uma página arrastada aqui: move (segure Ctrl para copiar)
       row.addEventListener('dragover', e => {
@@ -338,11 +338,28 @@ const App = {
     setTimeout(() => { const t = $('#s-title'); t && (t.focus(), t.select()); }, 50);
     return s;
   },
+  // última página aberta (por caderno / por seção); cai na primeira se não houver ou se foi apagada/movida
+  lastIn(key, isNb) {
+    const id = this.meta.lastOpen?.[key], s = id && this.sermons.get(id);
+    if (s) { const sec = this.meta.sections.find(x => x.id === s.sec); if (sec && (isNb ? sec.nb === key : sec.id === key)) return s; }
+    return null;
+  },
+  goNotebook(id) {
+    const m = this.meta; m.currentNb = id;
+    const last = this.lastIn(id, true), sec = last ? m.sections.find(x => x.id === last.sec) : m.sections.find(x => x.nb === id);
+    m.currentSec = sec?.id || null; this.saveMeta(); this.renderNav();
+    const pg = last || (sec && this.sectionSermons(sec.id)[0]); if (pg) this.open(pg.id); else { this.cur = null; this.renderEditor(); }
+  },
+  goSection(id) {
+    this.meta.currentSec = id; this.saveMeta(); this.renderNav();
+    const pg = this.lastIn(id, false) || this.sectionSermons(id)[0]; if (pg) this.open(pg.id);
+  },
   open(id) {
     this.flush();
     const s = this.sermons.get(id); if (!s) return;
     this.cur = s; this.meta.currentSermon = id;
     const sec = this.meta.sections.find(x => x.id === s.sec);
+    if (sec) { const L = this.meta.lastOpen ||= {}; L[sec.id] = id; L[sec.nb] = id; }
     if (sec && sec.id !== this.meta.currentSec) { this.meta.currentSec = sec.id; this.meta.currentNb = sec.nb; this.renderNav(); }
     this.saveMeta();
     $$('#page-list .page').forEach(p => p.classList.toggle('active', p.dataset.id === id));
