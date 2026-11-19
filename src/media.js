@@ -623,6 +623,7 @@ const Spell = {
   init() {
     document.addEventListener('keydown', e => { if (e.key === 'F7' && !e.ctrlKey && !e.altKey) { e.preventDefault(); this.open(); } });
     const rb = $('#rb-spell'); if (rb) rb.onclick = () => this.open();
+    for (const [id, d] of [['#rb-in', 1], ['#rb-out', -1]]) { const x = $(id); if (x) { x.onmousedown = e => e.preventDefault(); x.onclick = () => indentSel(d); } }
     const lv = $('#rb-live'); if (lv) { const paint = () => lv.classList.toggle('on', this.live()); paint();
       lv.onclick = () => { this.setLive(!this.live()); paint(); UI.toast(this.live() ? 'Sublinhado ao digitar: ligado. Se TUDO ficar sublinhado, ative o Português (Brasil) na verificação ortográfica do navegador.' : 'Sublinhado ao digitar: desligado. Use F7 para verificar.'); }; }
   }
@@ -669,6 +670,7 @@ const FloatBar = {
       B('⌀', 'Tirar marca-texto', () => this.exec('hiliteColor', 'transparent', true), 'fb-sw none'), sep(),
       ...this.COL.map(c => B('A', 'Cor do texto', () => this.exec('foreColor', c, true), 'fb-col').tap(x => x.style.color = c)), sep(),
       B('•', 'Lista com marcadores', () => this.exec('insertUnorderedList')), B('1.', 'Lista numerada', () => this.exec('insertOrderedList')),
+      B('⇤', 'Diminuir recuo (Shift+Tab)', () => indentSel(-1)), B('⇥', 'Aumentar recuo / subitem (Tab)', () => indentSel(1)),
       B('¹', 'Nota de rodapé no fim da seleção (Ctrl+Alt+N)', () => { const s = getSelection(); if (s.rangeCount) { const r = s.getRangeAt(0); r.collapse(false); s.removeAllRanges(); s.addRange(r); } this.hide(); Footnotes.insert(); }),
       B('⨯', 'Limpar formatação', () => this.exec('removeFormat')));
     document.body.append(bar); return bar;

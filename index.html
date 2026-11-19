@@ -636,6 +636,8 @@ body.nb-pinned .nb-car{display:none}
     <div class="rgroup">
       <button data-cmd="insertUnorderedList" class="rb" title="Marcadores">• Lista</button>
       <button data-cmd="insertOrderedList" class="rb" title="Numeração">1. Lista</button>
+      <button id="rb-out" class="rb" title="Diminuir recuo (Shift+Tab)">⇤</button>
+      <button id="rb-in" class="rb" title="Aumentar recuo / subitem (Tab)">⇥</button>
       <button data-cmd="removeFormat" class="rb" title="Limpar formatação">Limpar</button>
     </div>
     <div class="rgroup">
@@ -1927,6 +1929,10 @@ const App = {
       document.execCommand('insertHTML', false, sanitizeHTML(html, b.type === 'point'));
     });
     body.addEventListener('keydown', e => {
+      /* Tab / Shift+Tab: recuo de listas e parágrafos (como no Word/OneNote) */
+      if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey && !['point', 'subhead'].includes(b.type)) {
+        e.preventDefault(); indentSel(e.shiftKey ? -1 : 1); return;
+      }
       if (e.key === 'Backspace' && !body.textContent.length && !body.querySelector('img') && this.cur.blocks.length > 1 && TEXT_TYPES().includes(b.type)) {
         e.preventDefault(); const i = this.blockIndex(b.id); this.removeBlock(b.id, true);
         const prev = $$('#blocks .block')[Math.max(0, i - 1)]?.querySelector('.b-body'); if (prev) { prev.focus(); placeCaretEnd(prev); }
@@ -2334,6 +2340,23 @@ const Search = {
     });
   }
 };
+
+/* recuo: dentro de lista cria/desfaz subitem; fora de lista, recua o parágrafo */
+function indentSel(dir) {
+  const sel = getSelection(); if (!sel.rangeCount) return;
+  const n = sel.anchorNode; const elx = n && (n.nodeType === 1 ? n : n.parentElement);
+  const li = elx?.closest('li'), body = elx?.closest('.b-body');
+  if (dir < 0) { document.execCommand('outdent'); return; }
+  if (li) {
+    /* o primeiro item da lista não tem "pai" para virar subitem: o navegador criaria uma lista vazia */
+    if (!li.previousElementSibling) { UI.toast('O primeiro item não pode virar subitem. Use Tab a partir do segundo.'); return; }
+    document.execCommand('indent'); return;
+  }
+  document.execCommand('indent');
+  /* o navegador recua com <blockquote>; deixamos discreto e sem a margem da direita */
+  body?.querySelectorAll('blockquote').forEach(q => { q.style.margin = '0 0 0 2em'; q.style.border = '0'; q.style.padding = '0'; });
+  body?.dispatchEvent(new Event('input', { bubbles: true }));
+}
 
 /* ===== Modo leitura / pregação ===== */
 const Reader = {
@@ -5402,6 +5425,7 @@ const Spell = {
   init() {
     document.addEventListener('keydown', e => { if (e.key === 'F7' && !e.ctrlKey && !e.altKey) { e.preventDefault(); this.open(); } });
     const rb = $('#rb-spell'); if (rb) rb.onclick = () => this.open();
+    for (const [id, d] of [['#rb-in', 1], ['#rb-out', -1]]) { const x = $(id); if (x) { x.onmousedown = e => e.preventDefault(); x.onclick = () => indentSel(d); } }
     const lv = $('#rb-live'); if (lv) { const paint = () => lv.classList.toggle('on', this.live()); paint();
       lv.onclick = () => { this.setLive(!this.live()); paint(); UI.toast(this.live() ? 'Sublinhado ao digitar: ligado. Se TUDO ficar sublinhado, ative o Português (Brasil) na verificação ortográfica do navegador.' : 'Sublinhado ao digitar: desligado. Use F7 para verificar.'); }; }
   }
@@ -5448,6 +5472,7 @@ const FloatBar = {
       B('⌀', 'Tirar marca-texto', () => this.exec('hiliteColor', 'transparent', true), 'fb-sw none'), sep(),
       ...this.COL.map(c => B('A', 'Cor do texto', () => this.exec('foreColor', c, true), 'fb-col').tap(x => x.style.color = c)), sep(),
       B('•', 'Lista com marcadores', () => this.exec('insertUnorderedList')), B('1.', 'Lista numerada', () => this.exec('insertOrderedList')),
+      B('⇤', 'Diminuir recuo (Shift+Tab)', () => indentSel(-1)), B('⇥', 'Aumentar recuo / subitem (Tab)', () => indentSel(1)),
       B('¹', 'Nota de rodapé no fim da seleção (Ctrl+Alt+N)', () => { const s = getSelection(); if (s.rangeCount) { const r = s.getRangeAt(0); r.collapse(false); s.removeAllRanges(); s.addRange(r); } this.hide(); Footnotes.insert(); }),
       B('⨯', 'Limpar formatação', () => this.exec('removeFormat')));
     document.body.append(bar); return bar;

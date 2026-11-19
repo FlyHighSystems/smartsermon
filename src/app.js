@@ -509,6 +509,10 @@ const App = {
       document.execCommand('insertHTML', false, sanitizeHTML(html, b.type === 'point'));
     });
     body.addEventListener('keydown', e => {
+      /* Tab / Shift+Tab: recuo de listas e parágrafos (como no Word/OneNote) */
+      if (e.key === 'Tab' && !e.ctrlKey && !e.altKey && !e.metaKey && !['point', 'subhead'].includes(b.type)) {
+        e.preventDefault(); indentSel(e.shiftKey ? -1 : 1); return;
+      }
       if (e.key === 'Backspace' && !body.textContent.length && !body.querySelector('img') && this.cur.blocks.length > 1 && TEXT_TYPES().includes(b.type)) {
         e.preventDefault(); const i = this.blockIndex(b.id); this.removeBlock(b.id, true);
         const prev = $$('#blocks .block')[Math.max(0, i - 1)]?.querySelector('.b-body'); if (prev) { prev.focus(); placeCaretEnd(prev); }
@@ -916,3 +920,20 @@ const Search = {
     });
   }
 };
+
+/* recuo: dentro de lista cria/desfaz subitem; fora de lista, recua o parágrafo */
+function indentSel(dir) {
+  const sel = getSelection(); if (!sel.rangeCount) return;
+  const n = sel.anchorNode; const elx = n && (n.nodeType === 1 ? n : n.parentElement);
+  const li = elx?.closest('li'), body = elx?.closest('.b-body');
+  if (dir < 0) { document.execCommand('outdent'); return; }
+  if (li) {
+    /* o primeiro item da lista não tem "pai" para virar subitem: o navegador criaria uma lista vazia */
+    if (!li.previousElementSibling) { UI.toast('O primeiro item não pode virar subitem. Use Tab a partir do segundo.'); return; }
+    document.execCommand('indent'); return;
+  }
+  document.execCommand('indent');
+  /* o navegador recua com <blockquote>; deixamos discreto e sem a margem da direita */
+  body?.querySelectorAll('blockquote').forEach(q => { q.style.margin = '0 0 0 2em'; q.style.border = '0'; q.style.padding = '0'; });
+  body?.dispatchEvent(new Event('input', { bubbles: true }));
+}
