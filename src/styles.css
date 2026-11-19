@@ -594,3 +594,5 @@ body.nb-pinned .nb-car{display:none}
 .cl-ring{width:16px;height:16px;transform:rotate(-90deg);flex-shrink:0}
 .cl-ring circle{fill:none;stroke-width:2.6}.cl-ring .bg{stroke:currentColor;opacity:.25}.cl-ring .fg{stroke:currentColor;stroke-linecap:round;stroke-dasharray:28 100;transition:stroke-dasharray .35s ease}
 .cl-ring.ind{animation:spin .9s linear infinite}
+
+.follow-opt{display:flex;gap:.6em;align-items:flex-start;margin:.8em 0;padding:.6em .7em;border:1px solid var(--line,#ddd);border-radius:8px;cursor:pointer}.follow-opt input{margin-top:.25em}.follow-opt span{display:flex;flex-direction:column;gap:.2em}

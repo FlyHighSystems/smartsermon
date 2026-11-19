@@ -29,6 +29,8 @@ const App = {
   ink: { tool: 'pen', color: '#1b1b1b', hlColor: '#ffd400', size: 2.2, finger: false },
 
   async init() {
+    this.bootT = Date.now();
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this._hiddenAt = Date.now(); else if (Date.now() - (this._hiddenAt || Date.now()) > 120000) { this.bootT = Date.now(); this._typed = false; } });
     await DB.init();
     this.meta = (await DB.get('kv', 'meta')) || this.seedMeta();
     for (const s of await DB.all('sermons')) this.sermons.set(s.id, s);
@@ -41,7 +43,7 @@ const App = {
     this.renderNav();
     await Cloud.init();
     const first = this.sermons.get(this.meta.currentSermon) || this.sectionSermons(this.meta.currentSec)[0] || [...this.sermons.values()][0];
-    first ? this.open(first.id) : this.renderEditor();
+    first ? this.open(first.id, true) : this.renderEditor();
     if (DB.volatile) UI.toast('Atenção: armazenamento local indisponível aqui. Faça backup (Exportar › Backup).');
     document.addEventListener('keydown', e => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); this.flush(); UI.toast('Salvo'); }
@@ -61,7 +63,7 @@ const App = {
   },
   saveMeta() {
     // marca mudança só quando muda algo que sincroniza (cadernos, seções, tipos, temas)
-    try { const sig = JSON.stringify(Cloud.metaPayload()); if (this._metaSig && sig !== this._metaSig) { this.meta.metaUpdated = Date.now(); Cloud.schedule(); } this._metaSig = sig; } catch (e) { }
+    try { const P = Cloud.metaPayload(); if (P.follow) P.follow = { ...P.follow, last: 0 }; const sig = JSON.stringify(P); if (this._metaSig && sig !== this._metaSig) { this.meta.metaUpdated = Date.now(); Cloud.schedule(); } this._metaSig = sig; } catch (e) { }
     this._saveMetaDb();
   },
   _saveMetaDb: debounce(function () { return DB.put('kv', 'meta', App.meta); }, 300),
@@ -123,7 +125,7 @@ const App = {
 
   /* ---- persistência ---- */
   pending: new Set(),
-  touch(s = this.cur) { if (!s) return; s.updated = Date.now(); this.pending.add(s.id); this._save(); if (s === this.cur) { this._est(); if (Book.is(s)) Book.updateCount(); } History.tick(s); Cloud.schedule(); },
+  touch(s = this.cur) { if (!s) return; if (Date.now() - (this.bootT || 0) > 2000) this._typed = true; s.updated = Date.now(); this.pending.add(s.id); this._save(); if (s === this.cur) { this._est(); if (Book.is(s)) Book.updateCount(); } History.tick(s); Cloud.schedule(); },
   _est: debounce(() => App.updateEstimate(), 400),
   updateEstimate() {
     const E = $('#s-est'); if (!E || !this.cur) return; const e = Estimate.sermon(this.cur);
@@ -340,7 +342,7 @@ const App = {
   },
   // última página aberta (por caderno / por seção); cai na primeira se não houver ou se foi apagada/movida
   lastIn(key, isNb) {
-    const id = this.meta.lastOpen?.[key], s = id && this.sermons.get(id);
+    const e = this.meta.lastOpen?.[key], id = typeof e === 'string' ? e : e?.id, s = id && this.sermons.get(id);
     if (s) { const sec = this.meta.sections.find(x => x.id === s.sec); if (sec && (isNb ? sec.nb === key : sec.id === key)) return s; }
     return null;
   },
@@ -354,12 +356,12 @@ const App = {
     this.meta.currentSec = id; this.saveMeta(); this.renderNav();
     const pg = this.lastIn(id, false) || this.sectionSermons(id)[0]; if (pg) this.open(pg.id);
   },
-  open(id) {
+  open(id, boot) {
     this.flush();
     const s = this.sermons.get(id); if (!s) return;
     this.cur = s; this.meta.currentSermon = id;
     const sec = this.meta.sections.find(x => x.id === s.sec);
-    if (sec) { const L = this.meta.lastOpen ||= {}; L[sec.id] = id; L[sec.nb] = id; }
+    if (sec && !boot) { const L = this.meta.lastOpen ||= {}, e = { id, t: Date.now() }; L[sec.id] = e; L[sec.nb] = e; L.__cur = e; if (this.meta.follow && typeof Cloud !== 'undefined') { Cloud.followDirty = true; Cloud.schedule(4000); } }
     if (sec && sec.id !== this.meta.currentSec) { this.meta.currentSec = sec.id; this.meta.currentNb = sec.nb; this.renderNav(); }
     this.saveMeta();
     $$('#page-list .page').forEach(p => p.classList.toggle('active', p.dataset.id === id));

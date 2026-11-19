@@ -146,6 +146,7 @@ const Cloud = {
       App.flush();
       this.setProg({ label: 'Cadernos e seções…' }); await this.syncMeta();
       this.setProg({ label: 'Procurando novidades…' }); await this.pull();
+      this.applyJump();
       this.setProg({ label: 'Enviando…' }); await this.push();
       this.st.at = Date.now(); this.saveState(); this.lastError = ''; this.last = { ...this.res, at: this.st.at };
       this.prog = null; this.setStatus('ok');
@@ -156,12 +157,19 @@ const Cloud = {
     } finally { this.syncing = false; this._retried = false; if (this.status === 'syncing') this.setStatus('pending'); this.prog = null; this.paintBar(); }
     if (this.again) { this.again = false; this.schedule(1500); }
   },
+  applyJump() {
+    const id = this.pendingJump; this.pendingJump = null; if (!id || !App.meta.follow) return;
+    const s = App.sermons.get(id); if (!s || App.cur?.id === id || Reader.active) return;
+    const fresh = !App._typed && Date.now() - (App.bootT || 0) < 45000;
+    if (fresh) { App.open(id); UI.toast(`Continuando de onde você parou: “${s.title || 'sem título'}”`); }
+    else UI.toast(`No outro aparelho você estava em “${s.title || 'sem título'}”`, { label: 'Ir para lá', fn: () => App.open(id) });
+  },
   uid() { return this.session.user?.id || this.userFromToken(this.session.access_token)?.id; },
 
   /* Cadernos/seções/tipos: une por id; o mais recente vence nos itens em comum; exclusões viajam como lista */
   metaPayload() {
     const m = App.meta;
-    return { notebooks: m.notebooks, sections: m.sections, customTypes: m.customTypes || [], deleted: m.deleted || {}, theme: m.theme, readerTheme: m.readerTheme, readerSerif: !!m.readerSerif, dict: m.dict || [], groupNames: m.groupNames || {}, ai: (typeof AI !== 'undefined' && AI.cloudPayload()) || undefined };
+    return { notebooks: m.notebooks, sections: m.sections, customTypes: m.customTypes || [], deleted: m.deleted || {}, theme: m.theme, readerTheme: m.readerTheme, readerSerif: !!m.readerSerif, dict: m.dict || [], groupNames: m.groupNames || {}, follow: { on: !!m.follow, onT: m.followT || 0, last: m.follow ? (m.lastOpen || {}) : undefined }, ai: (typeof AI !== 'undefined' && AI.cloudPayload()) || undefined };
   },
   async syncMeta() {
     const r = await this.rest('/rest/v1/user_meta?select=data,updated_at,server_updated');
@@ -193,6 +201,11 @@ const Cloud = {
       if (remote.updated_at > m.metaUpdated) { if (rd.theme) m.theme = rd.theme; if (rd.readerTheme) m.readerTheme = rd.readerTheme; if (rd.readerSerif != null) m.readerSerif = rd.readerSerif; }
       try { AI.fromCloud(rd.ai); } catch (e) { }
       if (rd.groupNames && remote.updated_at > m.metaUpdated) m.groupNames = rd.groupNames;
+      if (rd.follow) { // continuar de onde parei em outro aparelho
+        const f = rd.follow; if ((f.onT || 0) > (m.followT || 0)) { m.follow = !!f.on; m.followT = f.onT; }
+        if (m.follow && f.last) { const L = m.lastOpen ||= {}, norm = e => typeof e === 'string' ? { id: e, t: 0 } : (e || { t: 0 });
+          for (const k in f.last) { const r = norm(f.last[k]), l = norm(L[k]); if (r.id && r.t > l.t) { L[k] = r; if (k === '__cur' && r.id !== App.cur?.id) this.pendingJump = r.id; } } }
+      }
       if (Array.isArray(rd.dict)) m.dict = [...new Set([...(m.dict || []), ...rd.dict])];
       this.st.lastMeta = remote.server_updated; changed = true;
       if (!m.notebooks.length) { const nb = { id: uid(), name: 'Ministrações', color: '#7719aa' }; m.notebooks.push(nb); }
@@ -200,7 +213,8 @@ const Cloud = {
       if (!m.sections.some(s => s.id === m.currentSec)) m.currentSec = m.sections.find(s => s.nb === m.currentNb)?.id || null;
       registerCustomTypes(); await DB.put('kv', 'meta', m);
     }
-    if (!remote || m.metaUpdated > (this.st.metaSynced || 0) || changed) {
+    if (!remote || m.metaUpdated > (this.st.metaSynced || 0) || changed || this.followDirty) {
+      this.followDirty = false;
       const body = { user_id: this.uid(), data: this.metaPayload(), updated_at: Math.max(m.metaUpdated, remote?.updated_at || 0) };
       const r2 = await this.rest('/rest/v1/user_meta?on_conflict=user_id', { method: 'POST', headers: { 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify(body) });
       const saved = (await r2.json())[0]; if (saved) this.st.lastMeta = saved.server_updated;
@@ -393,6 +407,8 @@ const CloudUI = {
     this.set(
       el('p', {}, 'Conectado como ', el('b', { text: u.email || '—' })),
       live,
+      el('label', { class: 'follow-opt' }, el('input', { type: 'checkbox', checked: !!App.meta.follow, onchange: e => { App.meta.follow = e.target.checked; App.meta.followT = Date.now(); if (e.target.checked && App.cur) App.open(App.cur.id); App.saveMeta(); Cloud.followDirty = true; Cloud.schedule(500); UI.toast(e.target.checked ? 'Os aparelhos vão continuar de onde você parou' : 'Cada aparelho volta a lembrar só a própria página'); } }),
+        el('span', {}, el('b', { text: 'Continuar de onde parei em outro aparelho' }), el('small', { class: 'muted', text: 'Ao abrir o app (ou um caderno) no Surface, celular ou notebook, ele vai para a última página que você usou em qualquer aparelho. Desmarcado, cada aparelho lembra só a própria.' }))),
       el('div', { class: 'row-btns' }, btn,
         el('button', { class: 'btn', text: 'Sair desta conta', onclick: async () => { Cloud.listeners.delete(paint); await Cloud.signOut(); this.viewLogin('Você saiu. As ministrações continuam salvas neste aparelho.'); } })),
       el('p', { class: 'muted small', text: 'A sincronização é automática: alguns segundos depois de cada alteração, ao abrir o app e a cada minuto e meio. As Bíblias baixadas ficam em cada aparelho; ministrações, livros, cadernos, imagens e chaves sincronizam.' }));
