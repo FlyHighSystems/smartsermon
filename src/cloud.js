@@ -31,7 +31,7 @@ const Cloud = {
       history.replaceState(null, '', location.pathname + location.search);
       return 'ok';
     }
-    if (h.get('error_description') || h.get('error')) { const m = h.get('error_description') || h.get('error'); history.replaceState(null, '', location.pathname + location.search); return m; }
+    if (h.get('error_description') || h.get('error')) { const m = this.authMsg(h.get('error_description') || h.get('error')); history.replaceState(null, '', location.pathname + location.search); return m; }
     return null;
   },
   async auth(path, body, method = 'POST') {
@@ -42,7 +42,7 @@ const Cloud = {
     return j;
   },
   authMsg(m) {
-    const map = [[/Invalid login credentials/i, 'E-mail ou senha incorretos.'], [/Email not confirmed/i, 'Confirme seu e-mail: abra o link que o Supabase enviou e depois entre de novo.'],
+    const map = [[/SS_NOT_INVITED|Database error saving new user|Signups not allowed|signup.*disabled/i, 'Este e-mail não está cadastrado na equipe do SmartSower. Peça ao administrador para liberar o seu acesso.'], [/Invalid login credentials/i, 'E-mail ou senha incorretos.'], [/Email not confirmed/i, 'Confirme seu e-mail: abra o link que o Supabase enviou e depois entre de novo.'],
       [/User already registered/i, 'Este e-mail já tem conta. Use “Entrar”.'], [/Password should be at least/i, 'A senha precisa ter pelo menos 6 caracteres.'],
       [/rate limit|For security purposes/i, 'Muitas tentativas seguidas. Aguarde um minuto e tente de novo.'], [/provider is not enabled|Unsupported provider/i, 'O login com Google não está ativado no seu projeto Supabase (Authentication › Providers › Google).']];
     for (const [rx, t] of map) if (rx.test(m)) return t; return m;
@@ -54,13 +54,14 @@ const Cloud = {
     return 'confirm';
   },
   async magicLink(email) { await this.auth(`otp?redirect_to=${encodeURIComponent(this.redirect())}`, { email, create_user: true }); },
-  async providers() {
-    if (this._prov) return this._prov;
-    try { const c = this.cfg(); const r = await fetch(`${c.url}/auth/v1/settings`, { headers: { apikey: c.key } }); const j = await r.json(); this._prov = j.external || {}; } catch (e) { this._prov = {}; }
+  async providers(fresh) {
+    if (this._prov && !fresh) return this._prov;
+    try { const c = this.cfg(); const r = await fetch(`${c.url}/auth/v1/settings`, { headers: { apikey: c.key } }); const j = await r.json(); this._prov = { ...(j.external || {}), __disableSignup: !!j.disable_signup }; } catch (e) { this._prov = {}; }
     return this._prov;
   },
   google() { const c = this.cfg(); location.href = `${c.url}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(this.redirect())}`; },
   async signOut() {
+    try { localStorage.removeItem('ss-role'); } catch (e) { }
     try { const c = this.cfg(); await fetch(`${c.url}/auth/v1/logout`, { method: 'POST', headers: { apikey: c.key, Authorization: 'Bearer ' + this.session?.access_token } }); } catch (e) { }
     this.saveSession(null); this.setStatus('out');
   },
@@ -91,7 +92,7 @@ const Cloud = {
     document.addEventListener('visibilitychange', () => { if (!document.hidden) this.schedule(800); });
     window.addEventListener('storage', e => { if (e.key === 'ss-session') { this.loadSession(); this.schedule(300); } }); // login feito em outra aba/janela
     $('#btn-cloud').onclick = () => CloudUI.open();
-    if (back === 'ok') UI.toast('Conectado à nuvem. Sincronizando…'); else if (back) UI.toast('Login: ' + back);
+    Gate.back = back; if (back === 'ok') UI.toast('Conectado à nuvem. Sincronizando…'); else if (back && this.session) UI.toast('Login: ' + back);
     this.timer = setInterval(() => this.schedule(0), 90000);
     if (!this.configured()) this.setStatus('setup'); else if (!this.session) this.setStatus('out'); else this.schedule(300);
   },
@@ -144,6 +145,7 @@ const Cloud = {
     this.syncing = true; this.res = { down: 0, up: 0, conflicts: 0 }; this.prog = { label: 'Conectando…' }; this.setStatus('syncing');
     try {
       App.flush();
+      if (!await Team.enforce()) return;
       this.setProg({ label: 'Cadernos e seções…' }); await this.syncMeta();
       this.setProg({ label: 'Procurando novidades…' }); await this.pull();
       this.applyJump();
@@ -368,13 +370,13 @@ const CloudUI = {
     // Só mostra "Entrar com Google" se o provedor estiver ativado no Supabase
     const gbtn = el('button', { class: 'btn', text: 'Entrar com Google', hidden: true, onclick: () => Cloud.google() });
     Cloud.providers().then(p => { if (p.google) gbtn.hidden = false; });
-    const run = async (fn) => { out.textContent = 'Aguarde…'; try { const r = await fn(); if (r !== false) { if (Cloud.session) { out.textContent = ''; if (Gate.active) return Gate.done(); this.viewAccount(); Cloud.schedule(100); } } } catch (e) { out.textContent = e.message; } };
+    const run = async (fn) => { out.textContent = 'Aguarde…'; try { const r = await fn(); if (r !== false) { if (Cloud.session) { out.textContent = ''; if (Gate.active) return Gate.done(out); this.viewAccount(); Cloud.schedule(100); } } } catch (e) { out.textContent = e.message; } };
     this.set(
-      Gate.active ? el('p', { class: 'muted', text: 'Acesso restrito. Entre com a sua conta para continuar.' }) : el('p', { text: 'Entre com a mesma conta em todos os seus aparelhos (Surface, notebook…). As ministrações deste aparelho são enviadas e juntadas às da nuvem.' }),
+      Gate.active ? el('p', { class: 'muted', text: 'Acesso restrito à equipe. Entre com a sua conta — ou, se o administrador acabou de cadastrar você, toque em “Primeiro acesso” para criar sua senha.' }) : el('p', { text: 'Entre com a mesma conta em todos os seus aparelhos (Surface, notebook…). As ministrações deste aparelho são enviadas e juntadas às da nuvem.' }),
       email, el('div', { style: { height: '8px' } }), pass,
       el('div', { class: 'row-btns', style: { marginTop: '10px', flexWrap: 'wrap' } },
         el('button', { class: 'btn primary', text: 'Entrar', onclick: () => run(() => Cloud.signIn(email.value.trim(), pass.value)) }),
-        !Gate.active && el('button', { class: 'btn', text: 'Criar conta', onclick: () => run(async () => { const r = await Cloud.signUp(email.value.trim(), pass.value); if (r === 'confirm') { out.textContent = 'Conta criada! Abra o e-mail de confirmação do Supabase e depois clique em “Entrar”.'; return false; } }) }),
+        el('button', { class: 'btn', text: Gate.active ? 'Primeiro acesso' : 'Criar conta', title: 'Criar a senha com o e-mail que o administrador cadastrou', onclick: () => run(async () => { const r = await Cloud.signUp(email.value.trim(), pass.value); if (r === 'confirm') { out.textContent = 'Conta criada! Abra o e-mail de confirmação do Supabase e depois clique em “Entrar”.'; return false; } }) }),
         el('button', { class: 'btn', text: 'Receber link por e-mail', onclick: () => run(async () => { await Cloud.magicLink(email.value.trim()); out.textContent = 'Enviamos um link para o seu e-mail. Abra-o neste aparelho para entrar.'; return false; }) }),
         gbtn),
       out,
@@ -431,11 +433,13 @@ const Gate = {
     this.box = el('div', { id: 'gate' }, card); document.body.append(this.box);
     card.append(el('div', { class: 'gate-logo', html: '<img src="icon-192.png" alt="">' }), el('h1', { text: 'SmartSower' }));
     const body = el('div', { class: 'cloud' }); card.append(body);
-    const prev = CloudUI.body; CloudUI.body = body; CloudUI.viewLogin(); this._prev = prev;
+    const prev = CloudUI.body; CloudUI.body = body; let msg = ''; try { msg = sessionStorage.getItem('ss-gate-msg') || ''; sessionStorage.removeItem('ss-gate-msg'); } catch (e) { } CloudUI.viewLogin(msg || (this.back && this.back !== 'ok' ? this.back : '')); this._prev = prev;
     if (!navigator.onLine) body.prepend(el('p', { class: 'on-log', text: '📴 Sem internet. Conecte-se para entrar pela primeira vez neste aparelho.' }));
     return new Promise(r => this._res = r);
   },
-  done() {
+  async done(out) {
+    if (out) out.textContent = 'Verificando acesso…';
+    if (!await Team.enforce()) return;
     this.active = false; this.box?.remove(); document.body.classList.remove('gated'); CloudUI.body = this._prev;
     Cloud.setStatus('pending'); Cloud.schedule(100); UI.toast('Bem-vindo! Sincronizando seus cadernos…');
     this._res?.();

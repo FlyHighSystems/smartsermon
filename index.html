@@ -614,6 +614,16 @@ body.gated > *:not(#gate):not(.toast-wrap):not(#toasts) { display: none !importa
 .gate-card h1 { margin: 6px 0 14px; font-size: 1.5em; }
 .gate-card .cloud { text-align: left; }
 .gate-logo img { width: 64px; height: 64px; border-radius: 14px; }
+
+.team h4{margin:16px 0 8px}.team-warn{background:#fff4ce;color:#5c4400;border:1px solid #f2d36b;border-radius:8px;padding:10px 12px;margin-bottom:10px}
+.team-add-row{display:flex;gap:6px;flex-wrap:wrap}.team-add-row .inp{flex:1 1 150px;width:auto}.team-add-row select.inp{flex:0 0 140px}
+.team-invite{margin-top:10px;border:1px dashed var(--line);border-radius:8px;padding:10px}.team-invite pre{white-space:pre-wrap;font:inherit;font-size:13px;background:var(--hover,#0000000a);padding:8px;border-radius:6px;margin:6px 0}
+.team-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.team-row{display:grid;grid-template-columns:minmax(160px,1.6fr) auto minmax(140px,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-top:1px solid var(--line)}.team-row:first-child{border-top:0}
+.team-who{display:flex;flex-direction:column;min-width:0}.team-who span{overflow:hidden;text-overflow:ellipsis}
+.team-badge{font-size:12px;padding:2px 8px;border-radius:99px;background:#e8e3f3;color:#4b2a86}.team-badge.admin{background:#7719aa;color:#fff}
+.team-row .ok{color:#107c10}.team-acts{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+@media (max-width:700px){.team-row{grid-template-columns:1fr auto}.team-row>.small{grid-column:1/-1}.team-acts{grid-column:1/-1;justify-content:flex-start}}
 </style>
 </head>
 <body>
@@ -624,6 +634,7 @@ body.gated > *:not(#gate):not(.toast-wrap):not(#toasts) { display: none !importa
     <button class="rtab on" data-tab="home">Formatação</button>
     <button class="rtab" data-tab="insert">Inserir</button>
     <button class="rtab" data-tab="draw">Desenhar</button>
+    <button class="rtab" data-tab="team" hidden>Equipe</button>
   </nav>
   <div class="top-right">
     <button class="btn ghost cloud-btn" id="btn-cloud" title="Nuvem">☁ Entrar</button>
@@ -725,6 +736,13 @@ body.gated > *:not(#gate):not(.toast-wrap):not(#toasts) { display: none !importa
       <button id="ink-clear" class="rb">Limpar</button>
       <button data-insert="ink" class="rb t-ink">+ Novo desenho</button>
     </div>
+  </div>
+  <div class="rpanel" data-panel="team" hidden>
+    <div class="rgroup">
+      <button id="team-add" class="rb">＋ Adicionar pessoa</button>
+      <button id="team-open" class="rb">👥 Membros e acessos</button>
+    </div>
+    <div class="rgroup"><span class="rlabel">Só quem está na lista da equipe consegue entrar no SmartSower</span></div>
   </div>
 </div>
 
@@ -1615,7 +1633,7 @@ const App = {
     Search.init();
     $('#page-select').onclick = () => { this.selMode = !this.selMode; this.sel = new Set(); this.renderPages(); };
     $('#toggle-nav').onclick = () => document.body.classList.toggle('nav-collapsed');
-    EditorView.init(); Marks.init(); MarkSummary.init(); Spell.init(); Footnotes.init(); NbPanel.init(); PaneResize.init(); FloatBar.init();
+    EditorView.init(); Marks.init(); MarkSummary.init(); Spell.init(); Footnotes.init(); NbPanel.init(); PaneResize.init(); FloatBar.init(); Team.init();
     $('#editor').addEventListener('pointerdown', () => { if (window.innerWidth < 980) document.body.classList.add('nav-collapsed'); });
     if (window.innerWidth < 980) document.body.classList.add('nav-collapsed');
   },
@@ -3678,7 +3696,7 @@ const Cloud = {
       history.replaceState(null, '', location.pathname + location.search);
       return 'ok';
     }
-    if (h.get('error_description') || h.get('error')) { const m = h.get('error_description') || h.get('error'); history.replaceState(null, '', location.pathname + location.search); return m; }
+    if (h.get('error_description') || h.get('error')) { const m = this.authMsg(h.get('error_description') || h.get('error')); history.replaceState(null, '', location.pathname + location.search); return m; }
     return null;
   },
   async auth(path, body, method = 'POST') {
@@ -3689,7 +3707,7 @@ const Cloud = {
     return j;
   },
   authMsg(m) {
-    const map = [[/Invalid login credentials/i, 'E-mail ou senha incorretos.'], [/Email not confirmed/i, 'Confirme seu e-mail: abra o link que o Supabase enviou e depois entre de novo.'],
+    const map = [[/SS_NOT_INVITED|Database error saving new user|Signups not allowed|signup.*disabled/i, 'Este e-mail não está cadastrado na equipe do SmartSower. Peça ao administrador para liberar o seu acesso.'], [/Invalid login credentials/i, 'E-mail ou senha incorretos.'], [/Email not confirmed/i, 'Confirme seu e-mail: abra o link que o Supabase enviou e depois entre de novo.'],
       [/User already registered/i, 'Este e-mail já tem conta. Use “Entrar”.'], [/Password should be at least/i, 'A senha precisa ter pelo menos 6 caracteres.'],
       [/rate limit|For security purposes/i, 'Muitas tentativas seguidas. Aguarde um minuto e tente de novo.'], [/provider is not enabled|Unsupported provider/i, 'O login com Google não está ativado no seu projeto Supabase (Authentication › Providers › Google).']];
     for (const [rx, t] of map) if (rx.test(m)) return t; return m;
@@ -3701,13 +3719,14 @@ const Cloud = {
     return 'confirm';
   },
   async magicLink(email) { await this.auth(`otp?redirect_to=${encodeURIComponent(this.redirect())}`, { email, create_user: true }); },
-  async providers() {
-    if (this._prov) return this._prov;
-    try { const c = this.cfg(); const r = await fetch(`${c.url}/auth/v1/settings`, { headers: { apikey: c.key } }); const j = await r.json(); this._prov = j.external || {}; } catch (e) { this._prov = {}; }
+  async providers(fresh) {
+    if (this._prov && !fresh) return this._prov;
+    try { const c = this.cfg(); const r = await fetch(`${c.url}/auth/v1/settings`, { headers: { apikey: c.key } }); const j = await r.json(); this._prov = { ...(j.external || {}), __disableSignup: !!j.disable_signup }; } catch (e) { this._prov = {}; }
     return this._prov;
   },
   google() { const c = this.cfg(); location.href = `${c.url}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(this.redirect())}`; },
   async signOut() {
+    try { localStorage.removeItem('ss-role'); } catch (e) { }
     try { const c = this.cfg(); await fetch(`${c.url}/auth/v1/logout`, { method: 'POST', headers: { apikey: c.key, Authorization: 'Bearer ' + this.session?.access_token } }); } catch (e) { }
     this.saveSession(null); this.setStatus('out');
   },
@@ -3738,7 +3757,7 @@ const Cloud = {
     document.addEventListener('visibilitychange', () => { if (!document.hidden) this.schedule(800); });
     window.addEventListener('storage', e => { if (e.key === 'ss-session') { this.loadSession(); this.schedule(300); } }); // login feito em outra aba/janela
     $('#btn-cloud').onclick = () => CloudUI.open();
-    if (back === 'ok') UI.toast('Conectado à nuvem. Sincronizando…'); else if (back) UI.toast('Login: ' + back);
+    Gate.back = back; if (back === 'ok') UI.toast('Conectado à nuvem. Sincronizando…'); else if (back && this.session) UI.toast('Login: ' + back);
     this.timer = setInterval(() => this.schedule(0), 90000);
     if (!this.configured()) this.setStatus('setup'); else if (!this.session) this.setStatus('out'); else this.schedule(300);
   },
@@ -3791,6 +3810,7 @@ const Cloud = {
     this.syncing = true; this.res = { down: 0, up: 0, conflicts: 0 }; this.prog = { label: 'Conectando…' }; this.setStatus('syncing');
     try {
       App.flush();
+      if (!await Team.enforce()) return;
       this.setProg({ label: 'Cadernos e seções…' }); await this.syncMeta();
       this.setProg({ label: 'Procurando novidades…' }); await this.pull();
       this.applyJump();
@@ -4015,13 +4035,13 @@ const CloudUI = {
     // Só mostra "Entrar com Google" se o provedor estiver ativado no Supabase
     const gbtn = el('button', { class: 'btn', text: 'Entrar com Google', hidden: true, onclick: () => Cloud.google() });
     Cloud.providers().then(p => { if (p.google) gbtn.hidden = false; });
-    const run = async (fn) => { out.textContent = 'Aguarde…'; try { const r = await fn(); if (r !== false) { if (Cloud.session) { out.textContent = ''; if (Gate.active) return Gate.done(); this.viewAccount(); Cloud.schedule(100); } } } catch (e) { out.textContent = e.message; } };
+    const run = async (fn) => { out.textContent = 'Aguarde…'; try { const r = await fn(); if (r !== false) { if (Cloud.session) { out.textContent = ''; if (Gate.active) return Gate.done(out); this.viewAccount(); Cloud.schedule(100); } } } catch (e) { out.textContent = e.message; } };
     this.set(
-      Gate.active ? el('p', { class: 'muted', text: 'Acesso restrito. Entre com a sua conta para continuar.' }) : el('p', { text: 'Entre com a mesma conta em todos os seus aparelhos (Surface, notebook…). As ministrações deste aparelho são enviadas e juntadas às da nuvem.' }),
+      Gate.active ? el('p', { class: 'muted', text: 'Acesso restrito à equipe. Entre com a sua conta — ou, se o administrador acabou de cadastrar você, toque em “Primeiro acesso” para criar sua senha.' }) : el('p', { text: 'Entre com a mesma conta em todos os seus aparelhos (Surface, notebook…). As ministrações deste aparelho são enviadas e juntadas às da nuvem.' }),
       email, el('div', { style: { height: '8px' } }), pass,
       el('div', { class: 'row-btns', style: { marginTop: '10px', flexWrap: 'wrap' } },
         el('button', { class: 'btn primary', text: 'Entrar', onclick: () => run(() => Cloud.signIn(email.value.trim(), pass.value)) }),
-        !Gate.active && el('button', { class: 'btn', text: 'Criar conta', onclick: () => run(async () => { const r = await Cloud.signUp(email.value.trim(), pass.value); if (r === 'confirm') { out.textContent = 'Conta criada! Abra o e-mail de confirmação do Supabase e depois clique em “Entrar”.'; return false; } }) }),
+        el('button', { class: 'btn', text: Gate.active ? 'Primeiro acesso' : 'Criar conta', title: 'Criar a senha com o e-mail que o administrador cadastrou', onclick: () => run(async () => { const r = await Cloud.signUp(email.value.trim(), pass.value); if (r === 'confirm') { out.textContent = 'Conta criada! Abra o e-mail de confirmação do Supabase e depois clique em “Entrar”.'; return false; } }) }),
         el('button', { class: 'btn', text: 'Receber link por e-mail', onclick: () => run(async () => { await Cloud.magicLink(email.value.trim()); out.textContent = 'Enviamos um link para o seu e-mail. Abra-o neste aparelho para entrar.'; return false; }) }),
         gbtn),
       out,
@@ -4078,11 +4098,13 @@ const Gate = {
     this.box = el('div', { id: 'gate' }, card); document.body.append(this.box);
     card.append(el('div', { class: 'gate-logo', html: '<img src="icon-192.png" alt="">' }), el('h1', { text: 'SmartSower' }));
     const body = el('div', { class: 'cloud' }); card.append(body);
-    const prev = CloudUI.body; CloudUI.body = body; CloudUI.viewLogin(); this._prev = prev;
+    const prev = CloudUI.body; CloudUI.body = body; let msg = ''; try { msg = sessionStorage.getItem('ss-gate-msg') || ''; sessionStorage.removeItem('ss-gate-msg'); } catch (e) { } CloudUI.viewLogin(msg || (this.back && this.back !== 'ok' ? this.back : '')); this._prev = prev;
     if (!navigator.onLine) body.prepend(el('p', { class: 'on-log', text: '📴 Sem internet. Conecte-se para entrar pela primeira vez neste aparelho.' }));
     return new Promise(r => this._res = r);
   },
-  done() {
+  async done(out) {
+    if (out) out.textContent = 'Verificando acesso…';
+    if (!await Team.enforce()) return;
     this.active = false; this.box?.remove(); document.body.classList.remove('gated'); CloudUI.body = this._prev;
     Cloud.setStatus('pending'); Cloud.schedule(100); UI.toast('Bem-vindo! Sincronizando seus cadernos…');
     this._res?.();
@@ -4098,6 +4120,129 @@ const Gate = {
     try { Object.keys(localStorage).filter(k => k.startsWith('ss-') || k.startsWith('smart')).forEach(k => localStorage.removeItem(k)); } catch (e) { }
     try { for (const k of await caches.keys()) await caches.delete(k); } catch (e) { }
     location.reload();
+  }
+};
+
+/* ============================================================
+   Equipe — quem pode usar o SmartSower (aba "Equipe", só administradores)
+   A regra de verdade fica no Supabase (supabase.sql): e-mail fora da lista
+   não consegue criar conta, e quem é removido perde o acesso aos dados.
+   ============================================================ */
+const Team = {
+  role() { try { return localStorage.getItem('ss-role') || ''; } catch (e) { return ''; } },
+  setRole(r) { try { r ? localStorage.setItem('ss-role', r) : localStorage.removeItem('ss-role'); } catch (e) { } this.paintTab(); },
+  email() { const u = Cloud.session?.user || (Cloud.session && Cloud.userFromToken(Cloud.session.access_token)) || {}; return (u.email || '').toLowerCase(); },
+  // 'admin' | 'member' | null (não está na equipe) | 'nosetup' (o trecho da equipe ainda não foi rodado no Supabase)
+  async check() {
+    const em = this.email(); if (!em) return null;
+    try {
+      const r = await Cloud.rest(`/rest/v1/team_members?select=role&email=eq.${encodeURIComponent(em)}`);
+      const rows = await r.json(); const role = rows[0]?.role || null; this.setRole(role); return role;
+    } catch (e) {
+      if (/team_members|não existem|does not exist|Could not find/i.test(e.message)) { this.setRole('nosetup'); return 'nosetup'; }
+      throw e;
+    }
+  },
+  async enforce() { // chamado no login e a cada sincronização
+    if (!Cloud.session || !navigator.onLine) return true;
+    let role; try { role = await this.check(); } catch (e) { return true; } // erro de rede: não expulsa ninguém
+    if (role) return true;
+    await Cloud.signOut(); this.setRole('');
+    try { sessionStorage.setItem('ss-gate-msg', 'Seu e-mail não está liberado na equipe do SmartSower. Peça ao administrador para cadastrar você.'); } catch (e) { }
+    location.reload(); return false;
+  },
+  paintTab() {
+    const t = $('.rtab[data-tab="team"]'); if (!t) return;
+    const r = this.role(), show = !!Cloud.session && (r === 'admin' || r === 'nosetup');
+    t.hidden = !show;
+    if (!show && t.classList.contains('on')) $('.rtab[data-tab="home"]')?.click();
+  },
+  init() {
+    $('#team-open').onclick = () => this.open();
+    $('#team-add').onclick = () => this.open(true);
+    this.paintTab();
+  },
+  inviteText(m) {
+    const url = location.origin + location.pathname.replace(/index\.html$/, '');
+    return `Olá${m.name ? ', ' + m.name.split(' ')[0] : ''}! Liberei seu acesso ao SmartSower.\n\n` +
+      `1) Acesse ${url}\n2) Clique em “Primeiro acesso”, use este e-mail (${m.email}) e crie sua senha. Se esse e-mail for uma conta Google, pode usar “Entrar com Google”.\n3) Confirme pelo link que chegar no seu e-mail e entre.\n\n` +
+      `Seus cadernos são só seus: ninguém da equipe vê o que você escreve.`;
+  },
+  copy(txt) { navigator.clipboard?.writeText(txt).then(() => UI.toast('Mensagem copiada — é só colar no WhatsApp ou e-mail'), () => UI.toast('Não consegui copiar')); },
+  async open(focusAdd) {
+    const body = el('div', { class: 'team' });
+    this.m = UI.modal({ title: '👥 Equipe — quem pode usar o SmartSower', body, wide: true });
+    this.body = body; await this.render(focusAdd);
+  },
+  async render(focusAdd) {
+    const B = this.body; B.innerHTML = ''; B.append(el('p', { class: 'muted', text: 'Carregando…' }));
+    let role; try { role = await this.check(); } catch (e) { B.innerHTML = ''; B.append(el('p', { class: 'on-log', text: '⚠ ' + e.message })); return; }
+    B.innerHTML = '';
+    if (role === 'nosetup') return this.renderSetup();
+    if (role !== 'admin') { B.append(el('p', { text: 'Só administradores gerenciam a equipe.' })); return; }
+    const set = await Cloud.providers(true);
+    if (set.__disableSignup) B.append(el('div', { class: 'team-warn', html: '⚠ <b>Falta um passo no Supabase:</b> as pessoas cadastradas aqui ainda não conseguem criar a senha. Em <b>Authentication › Sign In / Providers</b>, ligue <b>“Allow new users to sign up”</b>. Pode ligar sem medo: o banco só aceita contas de e-mails desta lista.' }));
+    // adicionar
+    const name = el('input', { class: 'inp', placeholder: 'Nome' }), email = el('input', { class: 'inp', type: 'email', placeholder: 'e-mail' });
+    const roleSel = el('select', { class: 'inp' }, el('option', { value: 'member', text: 'Membro' }), el('option', { value: 'admin', text: 'Administrador' }));
+    const out = el('div');
+    const add = async () => {
+      const em = email.value.trim().toLowerCase(), nm = name.value.trim();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) return UI.toast('Confira o e-mail');
+      try {
+        await Cloud.rest('/rest/v1/team_members', { method: 'POST', headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ email: em, name: nm, role: roleSel.value }) });
+      } catch (e) { return UI.toast(/duplicate|23505|already exists/i.test(e.message) ? 'Esse e-mail já está na equipe' : e.message); }
+      UI.toast(`${nm || em} foi adicionado(a)`);
+      await this.render(); this.showInvite({ email: em, name: nm });
+    };
+    email.onkeydown = e => { if (e.key === 'Enter') add(); };
+    B.append(el('div', { class: 'team-add' }, el('h4', { text: '＋ Adicionar pessoa' }),
+      el('div', { class: 'team-add-row' }, name, email, roleSel, el('button', { class: 'btn primary', text: 'Adicionar', onclick: add })), out));
+    this.inviteBox = out;
+    // lista
+    let list = [];
+    try { list = await (await Cloud.rest('/rest/v1/rpc/team_list', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).json(); } catch (e) { B.append(el('p', { class: 'on-log', text: '⚠ ' + e.message })); return; }
+    const me = this.email(), admins = list.filter(x => x.role === 'admin').length;
+    const tbl = el('div', { class: 'team-list' });
+    for (const m of list) {
+      const isMe = m.email === me;
+      const st = m.registered ? (m.last_sign_in ? '✓ Último acesso ' + new Date(m.last_sign_in).toLocaleDateString('pt-BR') : '✓ Conta criada') : '⏳ Aguardando primeiro acesso';
+      tbl.append(el('div', { class: 'team-row' },
+        el('div', { class: 'team-who' }, el('b', { text: (m.name || m.email.split('@')[0]) + (isMe ? ' (você)' : '') }), el('span', { class: 'muted small', text: m.email })),
+        el('span', { class: 'team-badge ' + m.role, text: m.role === 'admin' ? 'Administrador' : 'Membro' }),
+        el('span', { class: 'small ' + (m.registered ? 'ok' : 'muted'), text: st }),
+        el('div', { class: 'team-acts' },
+          !m.registered && el('button', { class: 'btn sm', text: 'Convite', title: 'Copiar a mensagem de convite', onclick: () => this.showInvite(m) }),
+          el('button', { class: 'btn sm', text: m.role === 'admin' ? 'Tornar membro' : 'Tornar admin', disabled: m.role === 'admin' && admins <= 1, title: m.role === 'admin' && admins <= 1 ? 'A equipe precisa de pelo menos um administrador' : '', onclick: () => this.setMemberRole(m, m.role === 'admin' ? 'member' : 'admin') }),
+          el('button', { class: 'btn sm danger', text: 'Remover', disabled: isMe || (m.role === 'admin' && admins <= 1), title: isMe ? 'Você não pode remover a si mesmo' : '', onclick: () => this.remove(m) }))));
+    }
+    B.append(el('h4', { text: `Equipe (${list.length})` }), tbl,
+      el('p', { class: 'muted small', text: 'Quem não está nesta lista não consegue criar conta nem entrar — nem com senha, nem por link de e-mail, nem com Google. Ao remover alguém, o acesso aos dados dessa pessoa é cortado na hora. Cada pessoa tem os próprios cadernos: a equipe não vê os textos uns dos outros.' }));
+    if (focusAdd) setTimeout(() => name.focus(), 50);
+  },
+  showInvite(m) {
+    const txt = this.inviteText(m), box = this.inviteBox; if (!box) return; box.innerHTML = '';
+    box.append(el('div', { class: 'team-invite' }, el('div', { class: 'small', html: `Mensagem para enviar a <b>${esc(m.name || m.email)}</b>:` }), el('pre', { text: txt }),
+      el('button', { class: 'btn primary sm', text: '📋 Copiar mensagem', onclick: () => this.copy(txt) })));
+  },
+  async setMemberRole(m, role) {
+    if (m.email === this.email() && role !== 'admin' && !await UI.confirm('Deixar de ser administrador', 'Você não vai mais conseguir abrir esta aba. Continuar?', 'Continuar')) return;
+    try { await Cloud.rest(`/rest/v1/team_members?email=eq.${encodeURIComponent(m.email)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ role }) }); }
+    catch (e) { return UI.toast(e.message); }
+    if (m.email === this.email()) { await this.check(); this.m?.close?.(); $('.modal-back')?.remove(); return; }
+    this.render();
+  },
+  async remove(m) {
+    if (!await UI.confirm('Remover da equipe', `Remover ${m.name || m.email}? A pessoa não vai mais conseguir entrar nem sincronizar. Os textos dela não são apagados — se você adicionar o e-mail de novo, ela volta a ter tudo.`, 'Remover')) return;
+    try { await Cloud.rest(`/rest/v1/team_members?email=eq.${encodeURIComponent(m.email)}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } }); }
+    catch (e) { return UI.toast(e.message); }
+    UI.toast('Removido(a) da equipe'); this.render();
+  },
+  renderSetup() {
+    this.body.append(
+      el('p', { html: 'Para controlar quem usa o SmartSower, o banco precisa da <b>lista da equipe</b>. São 2 passos, uma vez só:' }),
+      el('ol', { class: 'steps', html: '<li>No Supabase, abra <b>SQL Editor</b>, cole o conteúdo atualizado do arquivo <code>supabase.sql</code> e clique em <b>Run</b>. Quem já tem conta hoje (você) vira <b>administrador</b> automaticamente.</li><li>Em <b>Authentication › Sign In / Providers</b>, ligue <b>“Allow new users to sign up”</b>. Pode ligar sem medo: o banco recusa qualquer e-mail que não esteja na lista.</li>' }),
+      el('div', { class: 'row-btns' }, el('button', { class: 'btn primary', text: 'Já fiz — verificar', onclick: () => this.render() })));
   }
 };
 

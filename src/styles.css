@@ -603,3 +603,13 @@ body.gated > *:not(#gate):not(.toast-wrap):not(#toasts) { display: none !importa
 .gate-card h1 { margin: 6px 0 14px; font-size: 1.5em; }
 .gate-card .cloud { text-align: left; }
 .gate-logo img { width: 64px; height: 64px; border-radius: 14px; }
+
+.team h4{margin:16px 0 8px}.team-warn{background:#fff4ce;color:#5c4400;border:1px solid #f2d36b;border-radius:8px;padding:10px 12px;margin-bottom:10px}
+.team-add-row{display:flex;gap:6px;flex-wrap:wrap}.team-add-row .inp{flex:1 1 150px;width:auto}.team-add-row select.inp{flex:0 0 140px}
+.team-invite{margin-top:10px;border:1px dashed var(--line);border-radius:8px;padding:10px}.team-invite pre{white-space:pre-wrap;font:inherit;font-size:13px;background:var(--hover,#0000000a);padding:8px;border-radius:6px;margin:6px 0}
+.team-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.team-row{display:grid;grid-template-columns:minmax(160px,1.6fr) auto minmax(140px,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-top:1px solid var(--line)}.team-row:first-child{border-top:0}
+.team-who{display:flex;flex-direction:column;min-width:0}.team-who span{overflow:hidden;text-overflow:ellipsis}
+.team-badge{font-size:12px;padding:2px 8px;border-radius:99px;background:#e8e3f3;color:#4b2a86}.team-badge.admin{background:#7719aa;color:#fff}
+.team-row .ok{color:#107c10}.team-acts{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+@media (max-width:700px){.team-row{grid-template-columns:1fr auto}.team-row>.small{grid-column:1/-1}.team-acts{grid-column:1/-1;justify-content:flex-start}}
