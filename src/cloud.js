@@ -363,22 +363,22 @@ const CloudUI = {
   },
   viewLogin(msg) {
     const email = el('input', { class: 'inp', type: 'email', placeholder: 'seu e-mail', autocomplete: 'email' });
-    const pass = el('input', { class: 'inp', type: 'password', placeholder: 'senha (mínimo 6 caracteres)', autocomplete: 'current-password' });
+    const pass = el('input', { class: 'inp', type: 'password', placeholder: 'senha', autocomplete: 'current-password', onkeydown: e => { if (e.key === 'Enter') e.target.closest('.cloud')?.querySelector('.btn.primary')?.click(); } });
     const out = el('p', { class: 'small', text: msg || '' });
     // Só mostra "Entrar com Google" se o provedor estiver ativado no Supabase
     const gbtn = el('button', { class: 'btn', text: 'Entrar com Google', hidden: true, onclick: () => Cloud.google() });
     Cloud.providers().then(p => { if (p.google) gbtn.hidden = false; });
-    const run = async (fn) => { out.textContent = 'Aguarde…'; try { const r = await fn(); if (r !== false) { if (Cloud.session) { out.textContent = ''; this.viewAccount(); Cloud.schedule(100); } } } catch (e) { out.textContent = e.message; } };
+    const run = async (fn) => { out.textContent = 'Aguarde…'; try { const r = await fn(); if (r !== false) { if (Cloud.session) { out.textContent = ''; if (Gate.active) return Gate.done(); this.viewAccount(); Cloud.schedule(100); } } } catch (e) { out.textContent = e.message; } };
     this.set(
-      el('p', { text: 'Entre com a mesma conta em todos os seus aparelhos (Surface, notebook…). As ministrações deste aparelho são enviadas e juntadas às da nuvem.' }),
+      Gate.active ? el('p', { class: 'muted', text: 'Acesso restrito. Entre com a sua conta para continuar.' }) : el('p', { text: 'Entre com a mesma conta em todos os seus aparelhos (Surface, notebook…). As ministrações deste aparelho são enviadas e juntadas às da nuvem.' }),
       email, el('div', { style: { height: '8px' } }), pass,
       el('div', { class: 'row-btns', style: { marginTop: '10px', flexWrap: 'wrap' } },
         el('button', { class: 'btn primary', text: 'Entrar', onclick: () => run(() => Cloud.signIn(email.value.trim(), pass.value)) }),
-        el('button', { class: 'btn', text: 'Criar conta', onclick: () => run(async () => { const r = await Cloud.signUp(email.value.trim(), pass.value); if (r === 'confirm') { out.textContent = 'Conta criada! Abra o e-mail de confirmação do Supabase e depois clique em “Entrar”.'; return false; } }) }),
+        !Gate.active && el('button', { class: 'btn', text: 'Criar conta', onclick: () => run(async () => { const r = await Cloud.signUp(email.value.trim(), pass.value); if (r === 'confirm') { out.textContent = 'Conta criada! Abra o e-mail de confirmação do Supabase e depois clique em “Entrar”.'; return false; } }) }),
         el('button', { class: 'btn', text: 'Receber link por e-mail', onclick: () => run(async () => { await Cloud.magicLink(email.value.trim()); out.textContent = 'Enviamos um link para o seu e-mail. Abra-o neste aparelho para entrar.'; return false; }) }),
         gbtn),
       out,
-      el('p', { class: 'small' }, el('button', { class: 'btn link', text: 'Configurar projeto Supabase', onclick: () => this.viewSetup() })));
+      !Gate.active && el('p', { class: 'small' }, el('button', { class: 'btn link', text: 'Configurar projeto Supabase', onclick: () => this.viewSetup() })));
     setTimeout(() => email.focus(), 50);
   },
   viewAccount() {
@@ -410,8 +410,46 @@ const CloudUI = {
       el('label', { class: 'follow-opt' }, el('input', { type: 'checkbox', checked: !!App.meta.follow, onchange: e => { App.meta.follow = e.target.checked; App.meta.followT = Date.now(); if (e.target.checked && App.cur) App.open(App.cur.id); App.saveMeta(); Cloud.followDirty = true; Cloud.schedule(500); UI.toast(e.target.checked ? 'Os aparelhos vão continuar de onde você parou' : 'Cada aparelho volta a lembrar só a própria página'); } }),
         el('span', {}, el('b', { text: 'Continuar de onde parei em outro aparelho' }), el('small', { class: 'muted', text: 'Ao abrir o app (ou um caderno) no Surface, celular ou notebook, ele vai para a última página que você usou em qualquer aparelho. Desmarcado, cada aparelho lembra só a própria.' }))),
       el('div', { class: 'row-btns' }, btn,
-        el('button', { class: 'btn', text: 'Sair desta conta', onclick: async () => { Cloud.listeners.delete(paint); await Cloud.signOut(); this.viewLogin('Você saiu. As ministrações continuam salvas neste aparelho.'); } })),
+        el('button', { class: 'btn', text: 'Sair desta conta', onclick: async () => { Cloud.listeners.delete(paint); App.flush(); await Cloud.signOut(); location.reload(); } }),
+        el('button', { class: 'btn danger', text: 'Sair e apagar deste aparelho', title: 'Para computador emprestado ou da igreja', onclick: () => Gate.wipe() })),
       el('p', { class: 'muted small', text: 'A sincronização é automática: alguns segundos depois de cada alteração, ao abrir o app e a cada minuto e meio. As Bíblias baixadas ficam em cada aparelho; ministrações, livros, cadernos, imagens e chaves sincronizam.' }));
     Cloud.listeners.add(paint); paint();
+  }
+};
+
+// ── Tela de entrada: só usa o app quem estiver logado ──
+const Gate = {
+  active: false,
+  on() { return Cloud.configured(); },
+  early() { // esconde tudo antes de desenhar, se não houver sessão guardada
+    try { if (this.on() && !localStorage.getItem('ss-session') && !/access_token|error_description/.test(location.hash)) document.body.classList.add('gated'); } catch (e) { }
+  },
+  need() { return this.on() && !Cloud.session; },
+  wait() {
+    this.active = true; document.body.classList.add('gated');
+    const card = el('div', { class: 'gate-card' });
+    this.box = el('div', { id: 'gate' }, card); document.body.append(this.box);
+    card.append(el('div', { class: 'gate-logo', html: '<img src="icon-192.png" alt="">' }), el('h1', { text: 'SmartSower' }));
+    const body = el('div', { class: 'cloud' }); card.append(body);
+    const prev = CloudUI.body; CloudUI.body = body; CloudUI.viewLogin(); this._prev = prev;
+    if (!navigator.onLine) body.prepend(el('p', { class: 'on-log', text: '📴 Sem internet. Conecte-se para entrar pela primeira vez neste aparelho.' }));
+    return new Promise(r => this._res = r);
+  },
+  done() {
+    this.active = false; this.box?.remove(); document.body.classList.remove('gated'); CloudUI.body = this._prev;
+    Cloud.setStatus('pending'); Cloud.schedule(100); UI.toast('Bem-vindo! Sincronizando seus cadernos…');
+    this._res?.();
+  },
+  async wipe() {
+    if (!await UI.confirm('Sair e apagar deste aparelho', 'Os cadernos, livros e imagens serão apagados SÓ deste aparelho (continuam na nuvem e nos seus outros aparelhos). Use em computador emprestado ou da igreja.', 'Apagar e sair')) return;
+    App.flush(); try { await Cloud.sync(); } catch (e) { }
+    const pend = Cloud.pendingCount();
+    if (pend) return UI.toast(`Ainda há ${pend} alteração(ões) que não subiram para a nuvem. Conecte-se e sincronize antes de apagar.`);
+    await Cloud.signOut();
+    DB.close();
+    await new Promise(r => { const q = indexedDB.deleteDatabase('pulpito'); q.onsuccess = q.onerror = q.onblocked = () => r(); });
+    try { Object.keys(localStorage).filter(k => k.startsWith('ss-') || k.startsWith('smart')).forEach(k => localStorage.removeItem(k)); } catch (e) { }
+    try { for (const k of await caches.keys()) await caches.delete(k); } catch (e) { }
+    location.reload();
   }
 };

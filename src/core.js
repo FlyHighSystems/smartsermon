@@ -34,6 +34,7 @@ const DB = (() => {
   let db = null; const mem = { sermons: new Map(), kv: new Map(), bibles: new Map(), images: new Map(), history: new Map() };
   const api = {
     volatile: false,
+    close() { try { db?.close(); } catch (e) { } db = null; },
     async init() {
       try {
         db = await new Promise((res, rej) => {

@@ -29,7 +29,7 @@ const App = {
   ink: { tool: 'pen', color: '#1b1b1b', hlColor: '#ffd400', size: 2.2, finger: false },
 
   async init() {
-    this.bootT = Date.now();
+    this.bootT = Date.now(); Gate.early();
     document.addEventListener('visibilitychange', () => { if (document.hidden) this._hiddenAt = Date.now(); else if (Date.now() - (this._hiddenAt || Date.now()) > 120000) { this.bootT = Date.now(); this._typed = false; } });
     await DB.init();
     this.meta = (await DB.get('kv', 'meta')) || this.seedMeta();
@@ -42,6 +42,7 @@ const App = {
     await Bible.init();
     this.renderNav();
     await Cloud.init();
+    if (Gate.need()) await Gate.wait();
     const first = this.sermons.get(this.meta.currentSermon) || this.sectionSermons(this.meta.currentSec)[0] || [...this.sermons.values()][0];
     first ? this.open(first.id, true) : this.renderEditor();
     if (DB.volatile) UI.toast('Atenção: armazenamento local indisponível aqui. Faça backup (Exportar › Backup).');

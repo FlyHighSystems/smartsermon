@@ -607,6 +607,13 @@ body.nb-pinned .nb-car{display:none}
 .cl-ring.ind{animation:spin .9s linear infinite}
 
 .follow-opt{display:flex;gap:.6em;align-items:flex-start;margin:.8em 0;padding:.6em .7em;border:1px solid var(--line,#ddd);border-radius:8px;cursor:pointer}.follow-opt input{margin-top:.25em}.follow-opt span{display:flex;flex-direction:column;gap:.2em}
+
+body.gated > *:not(#gate):not(.toast-wrap):not(#toasts) { display: none !important; }
+#gate { position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; background: var(--bg, #f6f4f8); padding: 20px; overflow: auto; }
+.gate-card { width: min(420px, 100%); background: var(--panel, #fff); border: 1px solid var(--line, #ddd); border-radius: 14px; padding: 26px 24px; box-shadow: 0 10px 40px #0002; text-align: center; }
+.gate-card h1 { margin: 6px 0 14px; font-size: 1.5em; }
+.gate-card .cloud { text-align: left; }
+.gate-logo img { width: 64px; height: 64px; border-radius: 14px; }
 </style>
 </head>
 <body>
@@ -824,6 +831,7 @@ const DB = (() => {
   let db = null; const mem = { sermons: new Map(), kv: new Map(), bibles: new Map(), images: new Map(), history: new Map() };
   const api = {
     volatile: false,
+    close() { try { db?.close(); } catch (e) { } db = null; },
     async init() {
       try {
         db = await new Promise((res, rej) => {
@@ -1482,7 +1490,7 @@ const App = {
   ink: { tool: 'pen', color: '#1b1b1b', hlColor: '#ffd400', size: 2.2, finger: false },
 
   async init() {
-    this.bootT = Date.now();
+    this.bootT = Date.now(); Gate.early();
     document.addEventListener('visibilitychange', () => { if (document.hidden) this._hiddenAt = Date.now(); else if (Date.now() - (this._hiddenAt || Date.now()) > 120000) { this.bootT = Date.now(); this._typed = false; } });
     await DB.init();
     this.meta = (await DB.get('kv', 'meta')) || this.seedMeta();
@@ -1495,6 +1503,7 @@ const App = {
     await Bible.init();
     this.renderNav();
     await Cloud.init();
+    if (Gate.need()) await Gate.wait();
     const first = this.sermons.get(this.meta.currentSermon) || this.sectionSermons(this.meta.currentSec)[0] || [...this.sermons.values()][0];
     first ? this.open(first.id, true) : this.renderEditor();
     if (DB.volatile) UI.toast('Atenção: armazenamento local indisponível aqui. Faça backup (Exportar › Backup).');
@@ -4001,22 +4010,22 @@ const CloudUI = {
   },
   viewLogin(msg) {
     const email = el('input', { class: 'inp', type: 'email', placeholder: 'seu e-mail', autocomplete: 'email' });
-    const pass = el('input', { class: 'inp', type: 'password', placeholder: 'senha (mínimo 6 caracteres)', autocomplete: 'current-password' });
+    const pass = el('input', { class: 'inp', type: 'password', placeholder: 'senha', autocomplete: 'current-password', onkeydown: e => { if (e.key === 'Enter') e.target.closest('.cloud')?.querySelector('.btn.primary')?.click(); } });
     const out = el('p', { class: 'small', text: msg || '' });
     // Só mostra "Entrar com Google" se o provedor estiver ativado no Supabase
     const gbtn = el('button', { class: 'btn', text: 'Entrar com Google', hidden: true, onclick: () => Cloud.google() });
     Cloud.providers().then(p => { if (p.google) gbtn.hidden = false; });
-    const run = async (fn) => { out.textContent = 'Aguarde…'; try { const r = await fn(); if (r !== false) { if (Cloud.session) { out.textContent = ''; this.viewAccount(); Cloud.schedule(100); } } } catch (e) { out.textContent = e.message; } };
+    const run = async (fn) => { out.textContent = 'Aguarde…'; try { const r = await fn(); if (r !== false) { if (Cloud.session) { out.textContent = ''; if (Gate.active) return Gate.done(); this.viewAccount(); Cloud.schedule(100); } } } catch (e) { out.textContent = e.message; } };
     this.set(
-      el('p', { text: 'Entre com a mesma conta em todos os seus aparelhos (Surface, notebook…). As ministrações deste aparelho são enviadas e juntadas às da nuvem.' }),
+      Gate.active ? el('p', { class: 'muted', text: 'Acesso restrito. Entre com a sua conta para continuar.' }) : el('p', { text: 'Entre com a mesma conta em todos os seus aparelhos (Surface, notebook…). As ministrações deste aparelho são enviadas e juntadas às da nuvem.' }),
       email, el('div', { style: { height: '8px' } }), pass,
       el('div', { class: 'row-btns', style: { marginTop: '10px', flexWrap: 'wrap' } },
         el('button', { class: 'btn primary', text: 'Entrar', onclick: () => run(() => Cloud.signIn(email.value.trim(), pass.value)) }),
-        el('button', { class: 'btn', text: 'Criar conta', onclick: () => run(async () => { const r = await Cloud.signUp(email.value.trim(), pass.value); if (r === 'confirm') { out.textContent = 'Conta criada! Abra o e-mail de confirmação do Supabase e depois clique em “Entrar”.'; return false; } }) }),
+        !Gate.active && el('button', { class: 'btn', text: 'Criar conta', onclick: () => run(async () => { const r = await Cloud.signUp(email.value.trim(), pass.value); if (r === 'confirm') { out.textContent = 'Conta criada! Abra o e-mail de confirmação do Supabase e depois clique em “Entrar”.'; return false; } }) }),
         el('button', { class: 'btn', text: 'Receber link por e-mail', onclick: () => run(async () => { await Cloud.magicLink(email.value.trim()); out.textContent = 'Enviamos um link para o seu e-mail. Abra-o neste aparelho para entrar.'; return false; }) }),
         gbtn),
       out,
-      el('p', { class: 'small' }, el('button', { class: 'btn link', text: 'Configurar projeto Supabase', onclick: () => this.viewSetup() })));
+      !Gate.active && el('p', { class: 'small' }, el('button', { class: 'btn link', text: 'Configurar projeto Supabase', onclick: () => this.viewSetup() })));
     setTimeout(() => email.focus(), 50);
   },
   viewAccount() {
@@ -4048,9 +4057,47 @@ const CloudUI = {
       el('label', { class: 'follow-opt' }, el('input', { type: 'checkbox', checked: !!App.meta.follow, onchange: e => { App.meta.follow = e.target.checked; App.meta.followT = Date.now(); if (e.target.checked && App.cur) App.open(App.cur.id); App.saveMeta(); Cloud.followDirty = true; Cloud.schedule(500); UI.toast(e.target.checked ? 'Os aparelhos vão continuar de onde você parou' : 'Cada aparelho volta a lembrar só a própria página'); } }),
         el('span', {}, el('b', { text: 'Continuar de onde parei em outro aparelho' }), el('small', { class: 'muted', text: 'Ao abrir o app (ou um caderno) no Surface, celular ou notebook, ele vai para a última página que você usou em qualquer aparelho. Desmarcado, cada aparelho lembra só a própria.' }))),
       el('div', { class: 'row-btns' }, btn,
-        el('button', { class: 'btn', text: 'Sair desta conta', onclick: async () => { Cloud.listeners.delete(paint); await Cloud.signOut(); this.viewLogin('Você saiu. As ministrações continuam salvas neste aparelho.'); } })),
+        el('button', { class: 'btn', text: 'Sair desta conta', onclick: async () => { Cloud.listeners.delete(paint); App.flush(); await Cloud.signOut(); location.reload(); } }),
+        el('button', { class: 'btn danger', text: 'Sair e apagar deste aparelho', title: 'Para computador emprestado ou da igreja', onclick: () => Gate.wipe() })),
       el('p', { class: 'muted small', text: 'A sincronização é automática: alguns segundos depois de cada alteração, ao abrir o app e a cada minuto e meio. As Bíblias baixadas ficam em cada aparelho; ministrações, livros, cadernos, imagens e chaves sincronizam.' }));
     Cloud.listeners.add(paint); paint();
+  }
+};
+
+// ── Tela de entrada: só usa o app quem estiver logado ──
+const Gate = {
+  active: false,
+  on() { return Cloud.configured(); },
+  early() { // esconde tudo antes de desenhar, se não houver sessão guardada
+    try { if (this.on() && !localStorage.getItem('ss-session') && !/access_token|error_description/.test(location.hash)) document.body.classList.add('gated'); } catch (e) { }
+  },
+  need() { return this.on() && !Cloud.session; },
+  wait() {
+    this.active = true; document.body.classList.add('gated');
+    const card = el('div', { class: 'gate-card' });
+    this.box = el('div', { id: 'gate' }, card); document.body.append(this.box);
+    card.append(el('div', { class: 'gate-logo', html: '<img src="icon-192.png" alt="">' }), el('h1', { text: 'SmartSower' }));
+    const body = el('div', { class: 'cloud' }); card.append(body);
+    const prev = CloudUI.body; CloudUI.body = body; CloudUI.viewLogin(); this._prev = prev;
+    if (!navigator.onLine) body.prepend(el('p', { class: 'on-log', text: '📴 Sem internet. Conecte-se para entrar pela primeira vez neste aparelho.' }));
+    return new Promise(r => this._res = r);
+  },
+  done() {
+    this.active = false; this.box?.remove(); document.body.classList.remove('gated'); CloudUI.body = this._prev;
+    Cloud.setStatus('pending'); Cloud.schedule(100); UI.toast('Bem-vindo! Sincronizando seus cadernos…');
+    this._res?.();
+  },
+  async wipe() {
+    if (!await UI.confirm('Sair e apagar deste aparelho', 'Os cadernos, livros e imagens serão apagados SÓ deste aparelho (continuam na nuvem e nos seus outros aparelhos). Use em computador emprestado ou da igreja.', 'Apagar e sair')) return;
+    App.flush(); try { await Cloud.sync(); } catch (e) { }
+    const pend = Cloud.pendingCount();
+    if (pend) return UI.toast(`Ainda há ${pend} alteração(ões) que não subiram para a nuvem. Conecte-se e sincronize antes de apagar.`);
+    await Cloud.signOut();
+    DB.close();
+    await new Promise(r => { const q = indexedDB.deleteDatabase('pulpito'); q.onsuccess = q.onerror = q.onblocked = () => r(); });
+    try { Object.keys(localStorage).filter(k => k.startsWith('ss-') || k.startsWith('smart')).forEach(k => localStorage.removeItem(k)); } catch (e) { }
+    try { for (const k of await caches.keys()) await caches.delete(k); } catch (e) { }
+    location.reload();
   }
 };
 
