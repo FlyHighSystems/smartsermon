@@ -4139,7 +4139,7 @@ const Team = {
       const r = await Cloud.rest(`/rest/v1/team_members?select=role&email=eq.${encodeURIComponent(em)}`);
       const rows = await r.json(); const role = rows[0]?.role || null; this.setRole(role); return role;
     } catch (e) {
-      if (/team_members|não existem|does not exist|Could not find/i.test(e.message)) { this.setRole('nosetup'); return 'nosetup'; }
+      if (/não existem|does not exist|Could not find the (table|function)|schema cache/i.test(e.message)) { this.lastErr = e.message; this.setRole('nosetup'); return 'nosetup'; }
       throw e;
     }
   },
@@ -4176,7 +4176,7 @@ const Team = {
   },
   async render(focusAdd) {
     const B = this.body; B.innerHTML = ''; B.append(el('p', { class: 'muted', text: 'Carregando…' }));
-    let role; try { role = await this.check(); } catch (e) { B.innerHTML = ''; B.append(el('p', { class: 'on-log', text: '⚠ ' + e.message })); return; }
+    let role; try { role = await this.check(); } catch (e) { B.innerHTML = ''; B.append(el('p', { class: 'on-log', text: '⚠ O Supabase respondeu: ' + e.message }), el('p', { class: 'muted small', text: 'Mande um print desta mensagem para ajustarmos.' })); return; }
     B.innerHTML = '';
     if (role === 'nosetup') return this.renderSetup();
     if (role !== 'admin') { B.append(el('p', { text: 'Só administradores gerenciam a equipe.' })); return; }
@@ -4242,6 +4242,7 @@ const Team = {
     this.body.append(
       el('p', { html: 'Para controlar quem usa o SmartSower, o banco precisa da <b>lista da equipe</b>. São 2 passos, uma vez só:' }),
       el('ol', { class: 'steps', html: '<li>No Supabase, abra <b>SQL Editor</b>, cole o conteúdo atualizado do arquivo <code>supabase.sql</code> e clique em <b>Run</b>. Quem já tem conta hoje (você) vira <b>administrador</b> automaticamente.</li><li>Em <b>Authentication › Sign In / Providers</b>, ligue <b>“Allow new users to sign up”</b>. Pode ligar sem medo: o banco recusa qualquer e-mail que não esteja na lista.</li>' }),
+      el('p', { class: 'muted small', text: 'Detalhe técnico: ' + (this.lastErr || '') }),
       el('div', { class: 'row-btns' }, el('button', { class: 'btn primary', text: 'Já fiz — verificar', onclick: () => this.render() })));
   }
 };
