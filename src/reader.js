@@ -59,7 +59,7 @@ const Reader = {
     }
     for (const b of list) { const n = this.blockEl(b, numbers.get(b.id)); const ms = Marks.strip(b, 30); if (ms && n.prepend) { ms.classList.add('r-marks'); n.prepend(ms); } C.append(n); }
     if (st.mode === 'scroll') C.append(el('div', { class: 'r-end', text: '— fim —' }));
-    linkifyRefs(C);
+    linkifyRefs(C); ensureContrast(C);
     $('#r-scroll').scrollTop = 0; this.pos = 0;
     this.status();
   },

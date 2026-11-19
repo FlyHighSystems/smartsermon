@@ -501,7 +501,9 @@ const App = {
   },
   bindEditable(body, b) {
     body.spellcheck = Spell.live(); body.lang = 'pt-BR';
-    body.addEventListener('input', () => { b.html = body.innerHTML === '<br>' ? '' : body.innerHTML; this.touch(); });
+    const fixC = debounce(() => { if (ensureContrast(body)) { b.html = body.innerHTML; this.touch(); } }, 250);
+    body.addEventListener('input', () => { b.html = body.innerHTML === '<br>' ? '' : body.innerHTML; this.touch(); fixC(); });
+    requestAnimationFrame(() => { if (body.isConnected && ensureContrast(body)) { b.html = body.innerHTML; this.touch(b === this.cur?.blocks.find(x => x.id === b.id) ? this.cur : undefined); } });
     body.addEventListener('paste', e => {
       const html = e.clipboardData.getData('text/html');
       if (!html) return;

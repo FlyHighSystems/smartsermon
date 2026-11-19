@@ -116,3 +116,18 @@ function pickFiles(accept, multiple = false) {
     document.body.append(i); i.click();
   });
 }
+
+/* ===== Contraste do realce: texto sobre marca-texto sempre legível (claro, escuro, sépia, modo Pregar) ===== */
+function cssRGB(c) { const m = String(c).match(/rgba?\(([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.]+))?/); return m ? [+m[1], +m[2], +m[3], m[4] == null ? 1 : +m[4]] : null; }
+function relLum([r, g, b]) { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); }
+function ensureContrast(root) {
+  let changed = false; if (!root?.querySelectorAll) return false;
+  for (const e of root.querySelectorAll('[style*="background"], mark, font[style]')) {
+    const cs = getComputedStyle(e), bg = cssRGB(cs.backgroundColor); if (!bg || bg[3] < 0.3) continue;
+    const fg = cssRGB(cs.color); if (!fg) continue;
+    const lb = relLum(bg), lf = relLum(fg), ratio = (Math.max(lb, lf) + 0.05) / (Math.min(lb, lf) + 0.05);
+    if (ratio >= 4.5) continue;
+    e.style.color = lb > 0.35 ? '#1b1b1b' : '#ffffff'; changed = true;
+  }
+  return changed;
+}
