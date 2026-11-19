@@ -482,24 +482,56 @@ const App = {
       this.bindEditable(cap, b); wrap.append(cap); return wrap;
     }
     if (b.type === 'verse') {
-      const ref = el('input', { class: 'verse-ref', value: b.ref || '', placeholder: 'Referência — ex.: Jo 3:16-18' });
+      const ref = el('input', { class: 'verse-ref', value: b.ref || '', placeholder: 'Referência (Jo 3:16) ou uma frase/palavra para procurar' });
       const ver = el('select', { class: 'verse-version', title: 'Versão' }); this.fillVersionSelect(ver, b.version);
-      const go = el('button', { class: 'btn sm', text: 'Buscar texto' });
+      const go = el('button', { class: 'btn sm', text: 'Buscar', title: 'Referência: traz o texto · Frase/palavra: procura na versão escolhida' });
+      const list = el('div', { class: 'vs-list', hidden: true }); let hits = [], idx = -1, timer;
+      const closeList = () => { list.hidden = true; list.innerHTML = ''; hits = []; idx = -1; };
+      const pick = async it => { closeList(); ref.value = `${BOOKS[it.book - 1].name} ${it.ch}:${it.v}`; await fetchIt(); };
+      const paintSel = () => [...list.querySelectorAll('.vs-item')].forEach((n, i) => { n.classList.toggle('on', i === idx); if (i === idx) n.scrollIntoView({ block: 'nearest' }); });
+      const searchIt = async (q, quiet) => {
+        q = q.trim(); if (q.length < 2) return closeList();
+        const v = ver.value || Bible.current();
+        if (!v) { if (!quiet) UI.toast('Baixe uma versão da Bíblia para procurar por frase'); return; }
+        list.hidden = false; list.innerHTML = '<div class="vs-msg muted">Procurando…</div>';
+        const res = await Bible.searchWords(q, v); if (ref.value.trim() !== q) return;
+        list.innerHTML = ''; hits = res || []; idx = hits.length ? 0 : -1;
+        if (!res) { list.innerHTML = '<div class="vs-msg">Essa versão ainda não foi baixada neste aparelho.</div>'; return; }
+        const vl = Bible.info(v)?.short || v;
+        list.append(el('div', { class: 'vs-msg muted', text: hits.length ? `${res.total > hits.length ? res.total + '+ — mostrando ' + hits.length : hits.length} resultado(s) em ${vl}` + (res.exactCount < hits.length && res.exactCount ? ` · ${res.exactCount} com a frase exata` : '') + ' — clique no versículo (↑ ↓ Enter)' : `Nada encontrado para “${q}” em ${vl}. Tente outras palavras ou outra versão.` }));
+        hits.forEach((it, i) => {
+          const row = el('div', { class: 'vs-item' + (it.exact ? ' exact' : ''), onmousedown: e => { e.preventDefault(); pick(it); }, onmouseenter: () => { idx = i; paintSel(); } }, el('b', { text: `${BOOKS[it.book - 1].abbr} ${it.ch}:${it.v}` }));
+          row.insertAdjacentHTML('beforeend', ' ' + Bible.highlight(it.t, res.words));
+          list.append(row);
+        });
+        paintSel();
+      };
       const fetchIt = async (silent) => {
+        if (!parseRef(ref.value)) { if (silent !== true) searchIt(ref.value); return; }
+        closeList();
         const res = await Bible.lookup(ref.value, ver.value || undefined);
         if (res.error) { if (silent !== true) UI.toast(res.error); return; }
         b.ref = res.label; b.version = res.version; b.html = Bible.versesHTML(res.verses);
         ref.value = b.ref; body.innerHTML = b.html; this.touch();
       };
-      ref.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); fetchIt(); } };
-      ref.oninput = () => { b.ref = ref.value; this.touch(); };
-      ver.onchange = () => { b.version = ver.value; if (b.ref) fetchIt(); };
+      ref.onkeydown = e => {
+        if (!list.hidden && hits.length && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); idx = (idx + (e.key === 'ArrowDown' ? 1 : -1) + hits.length) % hits.length; paintSel(); return; }
+        if (e.key === 'Escape' && !list.hidden) { e.preventDefault(); closeList(); return; }
+        if (e.key === 'Enter') { e.preventDefault(); if (!list.hidden && hits[idx] && !parseRef(ref.value)) pick(hits[idx]); else fetchIt(); }
+      };
+      ref.oninput = () => {
+        b.ref = ref.value; this.touch(); clearTimeout(timer);
+        const q = ref.value.trim();
+        if (parseRef(q) || q.length < 3) closeList(); else timer = setTimeout(() => searchIt(q, true), 450);
+      };
+      ref.onblur = () => setTimeout(closeList, 150);
+      ver.onchange = () => { b.version = ver.value; if (!list.hidden) searchIt(ref.value, true); else if (b.ref) fetchIt(true); };
       go.onclick = () => fetchIt();
       const body = el('div', { class: 'b-body', contenteditable: 'true', 'data-ph': T.ph, html: b.html || '' });
       this.bindEditable(body, b);
       const study = el('button', { class: 'btn sm', text: '🔍', title: 'Estudo das palavras no original (Strong)', onclick: () => ref.value.trim() ? StrongUI.open(ref.value) : UI.toast('Informe a referência') });
-      wrap.append(el('div', { class: 'verse-head' }, ref, b.verLabel && !b.version ? el('span', { class: 'pill', text: b.verLabel, title: 'Versão do texto colado' }) : null, ver, go, study), body);
-      if (!b.html && b.ref && Bible.current()) setTimeout(() => fetchIt(true), 0);
+      wrap.append(el('div', { class: 'verse-head' }, el('div', { class: 'vs-wrap' }, ref, list), b.verLabel && !b.version ? el('span', { class: 'pill', text: b.verLabel, title: 'Versão do texto colado' }) : null, ver, go, study), body);
+      if (!b.html && b.ref && Bible.current() && parseRef(b.ref)) setTimeout(() => fetchIt(true), 0);
       return wrap;
     }
     const body = el('div', { class: 'b-body', contenteditable: 'true', 'data-ph': T.ph, html: b.html || '' });

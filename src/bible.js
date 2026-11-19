@@ -116,6 +116,31 @@ const Bible = {
       }
     }
     return out;
+  },
+  // Busca por frase ou palavras (sem acento, qualquer ordem). Frase exata vem primeiro.
+  async searchWords(q, version, limit = 120) {
+    const books = await this.load(version || this.current()); if (!books) return null;
+    const norm = t => stripAccents(String(t).toLowerCase()).replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+    const nq = norm(q), words = nq.split(' ').filter(w => w.length > 1 || nq.length <= 2); if (!nq) return [];
+    const exact = [], loose = [];
+    for (let b = 0; b < 66; b++) {
+      const bk = books[b]; if (!bk) continue;
+      for (let c = 0; c < bk.length; c++) for (let v = 0; v < bk[c].length; v++) {
+        const t = bk[c][v]; if (!t) continue; const n = ' ' + norm(t) + ' ';
+        if (n.includes(nq)) { if (exact.length < limit) exact.push({ book: b + 1, ch: c + 1, v: v + 1, t, exact: true }); }
+        else if (words.length > 1 && loose.length < limit && words.every(w => n.includes(w))) loose.push({ book: b + 1, ch: c + 1, v: v + 1, t });
+      }
+    }
+    return Object.assign(exact.concat(loose).slice(0, limit), { total: exact.length + loose.length, words, exactCount: exact.length });
+  },
+  // marca as palavras buscadas no texto (ignora acentos)
+  highlight(text, words) {
+    let h = esc(text); if (!words?.length) return h;
+    const plain = stripAccents(h.toLowerCase()); const marks = [];
+    for (const w of words) { const ww = stripAccents(w); let i = 0; while ((i = plain.indexOf(ww, i)) >= 0) { marks.push([i, i + ww.length]); i += ww.length; } }
+    marks.sort((a, b) => a[0] - b[0]); let out = '', last = 0;
+    for (const [a, z] of marks) { if (a < last) continue; out += h.slice(last, a) + '<mark>' + h.slice(a, z) + '</mark>'; last = z; }
+    return out + h.slice(last);
   }
 };
 

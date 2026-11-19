@@ -613,3 +613,10 @@ body.gated > *:not(#gate):not(.toast-wrap):not(#toasts) { display: none !importa
 .team-badge{font-size:12px;padding:2px 8px;border-radius:99px;background:#e8e3f3;color:#4b2a86}.team-badge.admin{background:#7719aa;color:#fff}
 .team-row .ok{color:#107c10}.team-acts{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
 @media (max-width:700px){.team-row{grid-template-columns:1fr auto}.team-row>.small{grid-column:1/-1}.team-acts{grid-column:1/-1;justify-content:flex-start}}
+
+.vs-wrap{position:relative;flex:1 1 220px;min-width:0;display:flex}.vs-wrap .verse-ref{flex:1;width:100%}
+.vs-list{position:absolute;left:0;top:calc(100% + 4px);z-index:60;width:min(640px,80vw);max-height:340px;overflow:auto;background:var(--panel,#fff);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px #0003;font-size:14px;line-height:1.45;text-align:left}
+.vs-msg{padding:8px 12px;font-size:12.5px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel,#fff)}
+.vs-item{padding:7px 12px;cursor:pointer;border-bottom:1px solid var(--line)}.vs-item:last-child{border-bottom:0}
+.vs-item b{color:var(--accent,#7719aa);margin-right:4px;white-space:nowrap}.vs-item.on{background:var(--hover,#7719aa14)}
+.vs-item mark{background:#ffe48a;color:#1b1b1b;border-radius:2px;padding:0 1px}
