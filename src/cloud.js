@@ -96,11 +96,27 @@ const Cloud = {
     if (!this.configured()) this.setStatus('setup'); else if (!this.session) this.setStatus('out'); else this.schedule(300);
   },
   saveState: debounce(() => DB.put('kv', 'sync', Cloud.st), 300),
+  pendingCount() { return [...App.sermons.values()].filter(s => !s.welcome && (this.st.synced[s.id] || 0) < s.updated).length + Object.keys(this.st.tombs || {}).length; },
+  hhmm(t) { return t ? new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''; },
   setStatus(s, extra) {
     this.status = s; const b = $('#btn-cloud'); if (!b) return;
-    const L = { setup: ['☁', 'Configurar nuvem'], out: ['☁', 'Entrar'], syncing: ['⟳', 'Sincronizando…'], ok: ['☁✓', 'Sincronizado'], offline: ['☁', 'Offline'], error: ['☁!', 'Erro na sincronização'], pending: ['☁', 'Alterações pendentes'] }[s];
+    const pend = this.session ? this.pendingCount() : 0;
+    const L = { setup: ['☁', 'Configurar nuvem'], out: ['☁', 'Entrar'], syncing: ['⟳', this.progText() || 'Sincronizando…'], ok: ['☁✓', 'Sincronizado ' + this.hhmm(this.st.at)],
+      offline: ['☁', 'Offline' + (pend ? ` · ${pend} a enviar` : '')], error: ['☁!', 'Erro — toque para ver'], pending: ['☁', pend ? `${pend} a enviar` : 'Alterações pendentes'] }[s];
     b.textContent = L[0] + ' ' + L[1]; b.dataset.state = s;
-    b.title = s === 'ok' ? `Sincronizado às ${new Date(this.st.at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : (extra || L[1]);
+    b.title = s === 'ok' ? `Tudo sincronizado às ${this.hhmm(this.st.at)}` : (extra || L[1]);
+    this.paintBar(); this.listeners.forEach(f => f());
+  },
+  /* progresso: barra fina no topo + texto no botão da nuvem + painel da conta */
+  listeners: new Set(),
+  prog: null,
+  setProg(p) { this.prog = p; const b = $('#btn-cloud'); if (b && this.status === 'syncing') b.textContent = '⟳ ' + (this.progText() || 'Sincronizando…'); this.paintBar(); this.listeners.forEach(f => f()); },
+  progText() { const p = this.prog; if (!p) return ''; return p.total ? `${p.label} ${Math.min(p.done, p.total)}/${p.total}` : p.label; },
+  paintBar() {
+    let bar = $('#sync-bar'); if (!bar) { bar = el('div', { id: 'sync-bar' }, el('i')); document.body.append(bar); }
+    const on = this.status === 'syncing'; bar.classList.toggle('on', on);
+    const p = this.prog; const i = bar.firstChild;
+    if (on && p?.total) { i.classList.remove('ind'); i.style.width = Math.max(4, Math.round(Math.min(p.done, p.total) / p.total * 100)) + '%'; } else { i.classList.add('ind'); i.style.width = ''; }
   },
   /* chamado sempre que algo muda localmente */
   schedule(ms = 4000) {
@@ -111,23 +127,28 @@ const Cloud = {
   tomb(id) { this.st.tombs[id] = Date.now(); delete this.st.synced[id]; this.saveState(); this.schedule(); },
 
   /* ---------- sincronização ---------- */
-  async sync() {
+  /* devolve uma promessa que só termina quando a sincronização (inclusive a que estava em andamento) acabar */
+  sync() {
+    if (this.running) { this.again = true; return this.running.then(() => this.running || this.sync()); }
+    this.running = this._sync().finally(() => { this.running = null; });
+    return this.running;
+  },
+  async _sync() {
     if (!this.configured() || !this.session) return;
     if (!navigator.onLine) return this.setStatus('offline');
-    if (this.syncing) { this.again = true; return; }
-    this.syncing = true; this.setStatus('syncing');
+    this.syncing = true; this.res = { down: 0, up: 0, conflicts: 0 }; this.prog = { label: 'Conectando…' }; this.setStatus('syncing');
     try {
       App.flush();
-      await this.syncMeta();
-      await this.pull();
-      await this.push();
-      this.st.at = Date.now(); this.saveState(); this.lastError = '';
-      this.setStatus('ok');
+      this.setProg({ label: 'Cadernos e seções…' }); await this.syncMeta();
+      this.setProg({ label: 'Procurando novidades…' }); await this.pull();
+      this.setProg({ label: 'Enviando…' }); await this.push();
+      this.st.at = Date.now(); this.saveState(); this.lastError = ''; this.last = { ...this.res, at: this.st.at };
+      this.prog = null; this.setStatus('ok');
     } catch (e) {
       console.warn('sync', e); this.lastError = e.message;
       if (e.auth) this.setStatus('out', e.message); else if (!navigator.onLine) this.setStatus('offline'); else this.setStatus('error', e.message);
-      if (e.retry && !this._retried) { this._retried = true; this.syncing = false; return this.sync(); }
-    } finally { this.syncing = false; this._retried = false; }
+      if (e.retry && !this._retried) { this._retried = true; this.syncing = false; return this._sync(); }
+    } finally { this.syncing = false; this._retried = false; if (this.status === 'syncing') this.setStatus('pending'); this.prog = null; this.paintBar(); }
     if (this.again) { this.again = false; this.schedule(1500); }
   },
   uid() { return this.session.user?.id || this.userFromToken(this.session.access_token)?.id; },
@@ -214,6 +235,7 @@ const Cloud = {
         need.push(row.id);
       }
       // 2) baixa o conteúdo só do que precisa
+      const base = n; if (need.length) this.setProg({ label: 'Baixando', done: 0, total: need.length });
       for (let i = 0; i < need.length; i += 40) {
         const ids = need.slice(i, i + 40).map(x => `"${x}"`).join(',');
         const r2 = await this.rest(`/rest/v1/sermons?select=id,data,updated_at&id=in.(${encodeURIComponent(ids)})`);
@@ -226,11 +248,12 @@ const Cloud = {
           const s = row.data; s.id = row.id; s.updated = row.updated_at;
           await this.inflateImages(s);
           App.sermons.set(s.id, s); await DB.put('sermons', s.id, s);
-          this.st.synced[s.id] = row.updated_at; n++;
+          this.st.synced[s.id] = row.updated_at; n++; this.setProg({ label: 'Baixando', done: n - base, total: need.length });
         }
       }
       this.st.lastPull = cursor; this.saveState();
     }
+    this.res.down = n; this.res.conflicts = conflicts;
     if (n || conflicts) {
       App.renderNav();
       if (App.cur && !App.sermons.has(App.cur.id)) { App.cur = null; App.renderEditor(); }
@@ -249,13 +272,14 @@ const Cloud = {
     const uidv = this.uid();
     const rows = [];
     for (const [id, ts] of Object.entries(this.st.tombs)) rows.push({ user_id: uidv, id, data: {}, updated_at: ts, deleted: true, _tomb: true });
-    for (const s of App.sermons.values()) {
-      if (s.welcome) continue;
-      if ((this.st.synced[s.id] || 0) >= s.updated) continue;
+    const todo = [...App.sermons.values()].filter(s => !s.welcome && (this.st.synced[s.id] || 0) < s.updated); let k = 0;
+    for (const s of todo) {
+      this.setProg({ label: 'Preparando envio', done: ++k, total: todo.length });
       if (await this.uploadImages(s)) await DB.put('sermons', s.id, s);
       rows.push({ user_id: uidv, id: s.id, data: this.outbound(s), updated_at: s.updated, deleted: false });
     }
     if (!rows.length) return;
+    this.res.up = rows.length; let sent = 0; this.setProg({ label: 'Enviando', done: 0, total: rows.length });
     // envia em lotes de até ~1,5 MB
     let batch = [], size = 0;
     const send = async () => {
@@ -263,6 +287,7 @@ const Cloud = {
       const body = JSON.stringify(batch.map(({ _tomb, ...r }) => r));
       await this.rest('/rest/v1/sermons?on_conflict=user_id,id', { method: 'POST', headers: { 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' }, body });
       for (const r of batch) { this.st.synced[r.id] = r.updated_at; if (r._tomb) delete this.st.tombs[r.id]; }
+      sent += batch.length; this.setProg({ label: 'Enviando', done: sent, total: rows.length });
       this.saveState(); batch = []; size = 0;
     };
     for (const r of rows) { const len = JSON.stringify(r.data).length; if (size + len > 1500000) await send(); batch.push(r); size += len; }
@@ -339,15 +364,33 @@ const CloudUI = {
   },
   viewAccount() {
     const u = Cloud.session?.user || Cloud.userFromToken(Cloud.session.access_token) || {};
-    const pend = [...App.sermons.values()].filter(s => !s.welcome && (Cloud.st.synced[s.id] || 0) < s.updated).length + Object.keys(Cloud.st.tombs).length;
+    const live = el('div', { class: 'sync-live' });
+    const btn = el('button', { class: 'btn primary', text: 'Sincronizar agora', onclick: async () => { Cloud.sync(); paint(); } });
+    const paint = () => {
+      if (!live.isConnected) { Cloud.listeners.delete(paint); return; }
+      const pend = Cloud.pendingCount(); live.innerHTML = '';
+      if (Cloud.status === 'syncing') {
+        const p = Cloud.prog; const pct = p?.total ? Math.round(Math.min(p.done, p.total) / p.total * 100) : null;
+        live.append(el('div', { class: 'sync-row' }, el('span', { class: 'spin' }), el('b', { text: 'Sincronizando…' }), el('span', { class: 'muted', text: Cloud.progText() })),
+          el('div', { class: 'sync-prog' }, el('i', { class: pct == null ? 'ind' : '', style: pct == null ? {} : { width: pct + '%' } })),
+          el('p', { class: 'muted small', text: 'Pode continuar usando o app enquanto isso.' }));
+        btn.disabled = true; btn.textContent = 'Sincronizando…';
+      } else {
+        btn.disabled = false; btn.textContent = 'Sincronizar agora';
+        if (Cloud.status === 'error' || Cloud.lastError) live.append(el('p', { class: 'on-log', text: '⚠ Não consegui sincronizar: ' + (Cloud.lastError || 'erro desconhecido') + '. Toque em “Sincronizar agora” para tentar de novo.' }));
+        else if (Cloud.status === 'offline') live.append(el('p', { class: 'on-log', text: '📴 Sem internet. ' + (pend ? `${pend} alteração(ões) esperando para enviar — sobem sozinhas quando a conexão voltar.` : 'Tudo o que você fizer fica salvo aqui e sobe quando a conexão voltar.') }));
+        else if (Cloud.last) { const L = Cloud.last; live.append(el('div', { class: 'sync-row ok' }, el('b', { text: '✓ Sincronizado às ' + Cloud.hhmm(L.at) }),
+          el('span', { class: 'muted', text: [L.down ? `${L.down} recebida(s)` : 'nada novo da nuvem', L.up ? `${L.up} enviada(s)` : 'nada a enviar', L.conflicts ? `${L.conflicts} conflito(s) guardado(s) como cópia` : ''].filter(Boolean).join(' · ') })));
+          if (pend) live.append(el('p', { class: 'muted small', text: `${pend} alteração(ões) nova(s) desde então — sobem em alguns segundos.` })); }
+        else live.append(el('p', { class: 'muted', text: Cloud.st.at ? `Última sincronização: ${new Date(Cloud.st.at).toLocaleString('pt-BR')}${pend ? ` · ${pend} alteração(ões) aguardando envio` : ''}` : 'Ainda não sincronizado neste aparelho.' }));
+      }
+    };
     this.set(
       el('p', {}, 'Conectado como ', el('b', { text: u.email || '—' })),
-      el('p', { class: 'muted', text: Cloud.st.at ? `Última sincronização: ${new Date(Cloud.st.at).toLocaleString('pt-BR')}` : 'Ainda não sincronizado neste aparelho.' }),
-      pend ? el('p', { class: 'muted', text: `${pend} alteração(ões) aguardando envio.` }) : null,
-      Cloud.lastError ? el('p', { class: 'on-log', text: '⚠ ' + Cloud.lastError }) : null,
-      el('div', { class: 'row-btns' },
-        el('button', { class: 'btn primary', text: 'Sincronizar agora', onclick: async () => { await Cloud.sync(); this.viewAccount(); } }),
-        el('button', { class: 'btn', text: 'Sair desta conta', onclick: async () => { await Cloud.signOut(); this.viewLogin('Você saiu. As ministrações continuam salvas neste aparelho.'); } })),
-      el('p', { class: 'muted small', text: 'A Bíblia baixada fica em cada aparelho (não ocupa a nuvem). Ministrações, cadernos, seções, tipos de bloco e imagens sincronizam.' }));
+      live,
+      el('div', { class: 'row-btns' }, btn,
+        el('button', { class: 'btn', text: 'Sair desta conta', onclick: async () => { Cloud.listeners.delete(paint); await Cloud.signOut(); this.viewLogin('Você saiu. As ministrações continuam salvas neste aparelho.'); } })),
+      el('p', { class: 'muted small', text: 'A sincronização é automática: alguns segundos depois de cada alteração, ao abrir o app e a cada minuto e meio. As Bíblias baixadas ficam em cada aparelho; ministrações, livros, cadernos, imagens e chaves sincronizam.' }));
+    Cloud.listeners.add(paint); paint();
   }
 };
