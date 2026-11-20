@@ -516,7 +516,7 @@ const Porter = {
       M.currentNb = nbId; if (firstSec) M.currentSec = firstSec.id;
     }
     App.saveMeta(); App.flush(); App.renderNav();
-    const open = App.sectionSermons(M.currentSec)[0] || last; if (open) App.open(open.id);
+    const open = App.sectionSermons(M.currentSec)[0] || last; if (open) App.open(open.id, false, true);
     if (ok) UI.toast(`${ok} página(s) importada(s). Revise os pontos e versículos.`);
   },
   async notebookImport() {

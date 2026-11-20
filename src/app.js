@@ -321,7 +321,7 @@ const App = {
       } else if (s.sec !== secId) { s.sec = secId; s.level = 0; const l = this.sectionSermons(secId); if (l.some(x => x.order != null && x !== s)) s.order = 1e6 + Date.now() % 1e6; this.touch(s); last = s; }
     }
     this.flush(); this.sel = new Set();
-    UI.toast(`${ids.length} página(s) ${copy ? 'copiada(s)' : 'movida(s)'} para “${sec.name}”`, { label: 'Abrir seção', fn: () => { this.meta.currentNb = sec.nb; this.meta.currentSec = sec.id; this.saveMeta(); this.renderNav(); const f = this.sectionSermons(sec.id)[0]; if (f) this.open(f.id); } });
+    UI.toast(`${ids.length} página(s) ${copy ? 'copiada(s)' : 'movida(s)'} para “${sec.name}”`, { label: 'Abrir seção', fn: () => { this.meta.currentNb = sec.nb; this.meta.currentSec = sec.id; this.saveMeta(); this.renderNav(); const f = this.sectionSermons(sec.id)[0]; if (f) this.open(f.id, false, true); } });
     this.renderNav();
   },
   newSermon(data = {}) {
@@ -351,13 +351,14 @@ const App = {
     const m = this.meta; m.currentNb = id;
     const last = this.lastIn(id, true), sec = last ? m.sections.find(x => x.id === last.sec) : m.sections.find(x => x.nb === id);
     m.currentSec = sec?.id || null; this.saveMeta(); this.renderNav();
-    const pg = last || (sec && this.sectionSermons(sec.id)[0]); if (pg) this.open(pg.id); else { this.cur = null; this.renderEditor(); }
+    const pg = last || (sec && this.sectionSermons(sec.id)[0]); if (pg) this.open(pg.id, false, true); else { this.cur = null; this.renderEditor(); }
   },
   goSection(id) {
     this.meta.currentSec = id; this.saveMeta(); this.renderNav();
-    const pg = this.lastIn(id, false) || this.sectionSermons(id)[0]; if (pg) this.open(pg.id);
+    const pg = this.lastIn(id, false) || this.sectionSermons(id)[0]; if (pg) this.open(pg.id, false, true);
   },
-  open(id, boot) {
+  // keepNav: abriu por troca de caderno/seção — o menu continua aberto até você escolher a página
+  open(id, boot, keepNav) {
     this.flush();
     const s = this.sermons.get(id); if (!s) return;
     this.cur = s; this.meta.currentSermon = id;
@@ -367,13 +368,13 @@ const App = {
     this.saveMeta();
     $$('#page-list .page').forEach(p => p.classList.toggle('active', p.dataset.id === id));
     this.renderEditor(); History.snap(s, 'ao abrir');
-    if (window.innerWidth < 980) document.body.classList.add('nav-collapsed');
+    if (window.innerWidth < 980 && !keepNav && !boot) document.body.classList.add('nav-collapsed');
   },
   async deleteSermon() {
     const s = this.cur; if (!s) return;
     if (!await UI.confirm('Excluir ministração', `Excluir “${s.title}”?`)) return;
     this.sermons.delete(s.id); await DB.del('sermons', s.id); Cloud.tomb(s.id); this.cur = null;
-    this.renderNav(); const n = this.sectionSermons(this.meta.currentSec)[0]; n ? this.open(n.id) : this.renderEditor();
+    this.renderNav(); const n = this.sectionSermons(this.meta.currentSec)[0]; n ? this.open(n.id, false, true) : this.renderEditor();
   },
   duplicateSermon() {
     const s = structuredClone(this.cur); s.id = uid(); s.title += ' (cópia)'; s.created = Date.now(); s.blocks.forEach(b => b.id = uid());

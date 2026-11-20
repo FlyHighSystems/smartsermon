@@ -364,7 +364,7 @@ const OneNoteUI = {
     await DB.put('kv', 'meta', App.meta);
     App.meta.currentNb = mpNb.id; App.meta.currentSec = App.meta.sections.find(s => s.nb === mpNb.id)?.id || App.meta.currentSec;
     App.renderNav();
-    const first = App.sectionSermons(App.meta.currentSec)[0]; if (first) App.open(first.id);
+    const first = App.sectionSermons(App.meta.currentSec)[0]; if (first) App.open(first.id, false, true);
     line.textContent = this.cancelled ? 'Importação interrompida. Rode de novo para continuar de onde parou.' : 'Importação concluída.';
     bar.firstChild.style.width = '100%';
     stop.replaceWith(el('button', { class: 'btn primary', text: 'Fechar', onclick: () => this.m.close() }), el('button', { class: 'btn', text: 'Importar outro caderno', onclick: () => this.viewNotebooks() }));
