@@ -157,6 +157,14 @@ const App = {
     EditorView.init(); Marks.init(); MarkSummary.init(); Spell.init(); Footnotes.init(); NbPanel.init(); PaneResize.init(); FloatBar.init(); Team.init();
     $('#editor').addEventListener('pointerdown', () => { if (window.innerWidth < 980) document.body.classList.add('nav-collapsed'); });
     if (window.innerWidth < 980) document.body.classList.add('nav-collapsed');
+    // dobrar/desdobrar (Galaxy Fold), girar a tela: reajusta como se tivesse aberto naquele tamanho
+    let lastW = window.innerWidth, rt;
+    window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => {
+      const w = window.innerWidth; if (Math.abs(w - lastW) < 60) return;
+      if (w < 980 && lastW >= 980) document.body.classList.add('nav-collapsed');
+      const vp = document.querySelector('meta[name=viewport]'); if (vp) { const c = vp.content; vp.content = c + ', maximum-scale=1'; setTimeout(() => { vp.content = c; }, 300); }
+      lastW = w;
+    }, 150); });
   },
   async notebookMenu() {
     const nb = this.meta.notebooks.find(n => n.id === this.meta.currentNb); if (!nb) return;

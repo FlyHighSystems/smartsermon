@@ -631,6 +631,32 @@ body.gated > *:not(#gate):not(.toast-wrap):not(#toasts) { display: none !importa
 .vs-item{padding:7px 12px;cursor:pointer;border-bottom:1px solid var(--line)}.vs-item:last-child{border-bottom:0}
 .vs-item b{color:var(--accent,#7719aa);margin-right:4px;white-space:nowrap}.vs-item.on{background:var(--hover,#7719aa14)}
 .vs-item mark{background:#ffe48a;color:#1b1b1b;border-radius:2px;padding:0 1px}
+
+/* ── Telas estreitas (frente do Galaxy Fold, celulares) — nada pode passar da largura da tela,
+      senão o navegador do celular afasta o zoom e a letra fica minúscula ── */
+html, body { max-width: 100%; overflow-x: hidden; }
+.s-actions { flex-wrap: wrap; }
+@media (max-width: 600px) {
+  .topbar { flex-wrap: wrap; height: auto; min-height: 48px; row-gap: 2px; padding-top: 6px; }
+  .top-right { flex: 1 1 0; min-width: 0; margin-left: auto; overflow-x: auto; scrollbar-width: none; gap: 4px; }
+  .top-right > :first-child { margin-left: auto; }
+  .top-right .cloud-btn { max-width: 46px; overflow: hidden; white-space: nowrap; padding-left: 8px; padding-right: 8px; }
+  .top-right .tb { padding: 5px 7px; }
+  .topbar .btn.preach { padding: 6px 10px; }
+  .rtabs { order: 9; width: 100%; height: 40px; }
+  .top-right::-webkit-scrollbar { display: none; }
+  .top-right .btn, .top-right .icon-btn { flex-shrink: 0; }
+  .s-actions { margin-left: 0; width: 100%; }
+  .s-meta label { max-width: 100%; }
+  .s-meta input:not([type=number]), .s-meta select { max-width: 62vw; }
+  .s-title { max-width: 100%; }
+  #nb-pane { width: 42vw !important; }
+  #pages-pane { left: 42vw !important; width: 58vw !important; }
+  .pane-grip { display: none !important; }
+  #nb-pane, #pages-pane { overflow-x: hidden; }
+  #page-import { white-space: normal; text-align: left; }
+  #bible-pane { width: 100vw !important; left: 0; }
+}
 </style>
 </head>
 <body>
@@ -1668,6 +1694,14 @@ const App = {
     EditorView.init(); Marks.init(); MarkSummary.init(); Spell.init(); Footnotes.init(); NbPanel.init(); PaneResize.init(); FloatBar.init(); Team.init();
     $('#editor').addEventListener('pointerdown', () => { if (window.innerWidth < 980) document.body.classList.add('nav-collapsed'); });
     if (window.innerWidth < 980) document.body.classList.add('nav-collapsed');
+    // dobrar/desdobrar (Galaxy Fold), girar a tela: reajusta como se tivesse aberto naquele tamanho
+    let lastW = window.innerWidth, rt;
+    window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => {
+      const w = window.innerWidth; if (Math.abs(w - lastW) < 60) return;
+      if (w < 980 && lastW >= 980) document.body.classList.add('nav-collapsed');
+      const vp = document.querySelector('meta[name=viewport]'); if (vp) { const c = vp.content; vp.content = c + ', maximum-scale=1'; setTimeout(() => { vp.content = c; }, 300); }
+      lastW = w;
+    }, 150); });
   },
   async notebookMenu() {
     const nb = this.meta.notebooks.find(n => n.id === this.meta.currentNb); if (!nb) return;
